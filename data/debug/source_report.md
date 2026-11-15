@@ -46,5 +46,6 @@ note: performance feed: HTTPError: 404 Client Error: Not Found for url: https://
 hsi_dividend_yield: HSI factsheet PDF; as of 2026-10-30 = 3.14%, P/E 13.04
 
 ## HKEX monthly bulletin (Main Board P/E, yield)
-hkex notes: 2026-10: HTTP 404 | 2026-09: HTTP 404 | 2026-08: HTTP 404 | 2026-07: HTTP 404
-FAILED LookupError: HKEX monthly bulletin: no pages parsed (first tried https://www.hkex.com.hk/eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2610.htm)
+hkex discovery: /eng/stat/smstat/mthbull/MonthlyBulletin_2510.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2511.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2512.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2601.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2602.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2603.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2604.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2605.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2606.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2607.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2608.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2609.json; /eng/stat/smstat/mthbull/MonthlyBulletin_2610.json
+hkex: 187 month(s) not found, newest 2026-10, oldest 2010-01
+hkex_mb_yield: 15 month(s) fetched this run; 15 obs, latest 2017-09 = 2.97%; P/E 15.21
