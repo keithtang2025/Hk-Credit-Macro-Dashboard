@@ -16,6 +16,7 @@ MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", 
 _MONTH_WORD = re.compile(r"\b(" + "|".join(MONTHS) + r")[a-z]*\.?", re.I)
 _YEAR = re.compile(r"(?<!\d)(19[5-9]\d|20\d\d)(?!\d)")
 _YYYYMM = re.compile(r"^\s*(19[5-9]\d|20\d\d)[-/ ]?(0[1-9]|1[0-2])\s*$")
+_MMYYYY = re.compile(r"^\s*(0?[1-9]|1[0-2])[-/.](19[5-9]\d|20\d\d)\s*$")
 _QUARTER = re.compile(r"(?:(?<![A-Za-z])Q\s?([1-4])(?!\d)|(?<!\d)([1-4])\s?Q(?![A-Za-z])|\b([1-4])(?:st|nd|rd|th)\s+quarter\b)", re.I)
 
 
@@ -43,6 +44,9 @@ def parse_period(value, default_year: int | None = None) -> tuple[pd.Timestamp |
     m = _YYYYMM.match(s)
     if m:
         return month_end(int(m.group(1)), int(m.group(2))), int(m.group(1))
+    m = _MMYYYY.match(s)
+    if m:
+        return month_end(int(m.group(2)), int(m.group(1))), int(m.group(2))
     years = _YEAR.findall(s)
     year = int(years[-1]) if years else None
     use_year = year or default_year

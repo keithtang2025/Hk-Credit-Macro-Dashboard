@@ -46,9 +46,47 @@ def pick(res: list[dict], name_pattern: str, formats=("CSV", "XLSX", "XLS"), exc
     return sorted(out, key=lambda r: formats.index((r.get("format") or "").upper()))
 
 
+class NotData(ValueError):
+    """The link returned a web page instead of a data file."""
+
+
+def _json_rows(obj) -> list[list]:
+    """Largest list of records anywhere in a JSON document, as header + rows."""
+    best: list = []
+
+    def walk(o):
+        nonlocal best
+        if isinstance(o, list):
+            if o and all(isinstance(x, dict) for x in o[:20]) and len(o) > len(best):
+                best = o
+            for x in o[:50]:
+                walk(x)
+        elif isinstance(o, dict):
+            for v in o.values():
+                walk(v)
+
+    walk(obj)
+    if not best:
+        if isinstance(obj, list) and obj and isinstance(obj[0], list):
+            return obj
+        raise LookupError("no records in JSON")
+    keys: list[str] = []
+    for rec in best:
+        for k in rec:
+            if k not in keys:
+                keys.append(k)
+    return [keys] + [[_num_or_text(str(rec.get(k))) if rec.get(k) is not None else None for k in keys] for rec in best]
+
+
 def load_rows(url: str, fmt: str) -> list[list]:
     content = _get(url, timeout=180).content
     fmt = fmt.upper()
+    head = content[:400].lstrip().lower()
+    if head.startswith(b"<!doctype html") or head.startswith(b"<html"):
+        raise NotData(f"{url} is a web page, not a data file")
+    if fmt == "JSON" or head.startswith(b"{") or head.startswith(b"["):
+        import json
+        return _json_rows(json.loads(content.decode("utf-8-sig")))
     if fmt == "XLSX":
         sheets = load_sheets(content, max_rows=5000)
         return [row for rows in sheets.values() for row in rows + [[]]]
@@ -161,12 +199,19 @@ def series_from_rows(rows: list[list], label_pattern: str, default_year: int | N
             s = s[~s.index.duplicated(keep="last")]
             if ok(s):
                 candidates.append(Found(s, f"column '{lab}' with periods by row"))
-        # 3) long format: the label is in the row itself, value is the row's last number
+        # 3) long format: the label is in the row itself; the value is in a column named
+        #    like figure/value, else the row's last number
+        header = rows[first - 1] if first > 0 else []
+        val_col = next((c for c, h in enumerate(header) if isinstance(h, str)
+                        and re.fullmatch(r"\s*(figure|value|obs_value|data|amount|count)\s*", h, re.I)), None)
         pts = {}
         for r, p in periods.items():
             row = rows[r]
             text = " ".join(_text(v) for v in row if _text(v))
             if not pat.search(text):
+                continue
+            if val_col is not None and val_col < len(row) and _num(row[val_col]) is not None:
+                pts[p] = _num(row[val_col])
                 continue
             nums = [_num(v) for v in row[1:] if not is_year_cell(v) and parse_period(v, year)[0] is None]
             nums = [n for n in nums if n is not None]
@@ -211,16 +256,15 @@ class TableSpec:
 
 CSD_SPECS = [
     TableSpec("unemployment", ("hk-censtatd-tablechart-210-06101",), r"\[English\]",
-              (r"unemployment rate.*seasonally adjusted|seasonally adjusted.*unemployment rate",
-               r"^\s*unemployment rate"), (0.5, 15)),
+              (r"(?=.*unemployment rate)(?=.*seasonally adjusted)(?!.*(not|non)[- ]seasonally)",
+               r"(?=.*unemployment rate)(?!.*under)"), (0.5, 15)),
     TableSpec("cpi_yoy", ("hk-censtatd-tablechart-510-60001",), r"\[English\]",
-              (r"composite.*(year-on-year|% change|change over)|(year-on-year|% change).*composite",
-               r"composite"), (-10, 20)),
+              (r"(?=.*composite)(?=.*(year-on-year|% change|change over|yoy))",
+               r"(?=.*(year-on-year|% change|change over))(?!.*(cpi\s*\(a\)|cpi\s*\(b\)|cpi\s*\(c\)))"), (-10, 20)),
     TableSpec("gdp_yoy", ("hk-censtatd-tablechart-310-31001", "hk-censtatd-tablechart-310-31003",
                           "hk-censtatd-tablechart-310-30001"), r"\[English\]",
-              (r"(gdp|gross domestic product).*(real|chained).*(change|year-on-year)|"
-               r"(year-on-year|% change).*(real|chained)",
-               r"real terms|chained.*change"), (-15, 20)),
+              (r"(?=.*(gdp|gross domestic product))(?=.*(real|chained))(?=.*(change|year-on-year))",
+               r"(?=.*(real terms|chained))(?=.*change)"), (-15, 20)),
 ]
 
 
@@ -232,24 +276,30 @@ def fetch_table(spec: TableSpec, report: list[str]) -> pd.Series:
         except Exception as exc:
             errors.append(f"{pkg}: {exc}")
             continue
-        chosen = pick(res, spec.resource_pattern, exclude=spec.resource_exclude)
+        chosen = pick(res, spec.resource_pattern, formats=("JSON", "XLSX", "CSV", "XLS"),
+                      exclude=spec.resource_exclude)
         if not chosen:
             errors.append(f"{pkg}: no resource matching /{spec.resource_pattern}/ among "
                           + "; ".join(f"{r.get('name')} [{r.get('format')}]" for r in res[:12]))
             continue
-        r = chosen[0]
-        rows = load_rows(r["url"], r.get("format", "CSV"))
-        for lp in spec.label_patterns:
+        for r in chosen:
+            label = f"{r.get('name')} [{r.get('format')}] {r.get('url')}"
             try:
-                f = series_from_rows(rows, lp, valid=spec.valid)
-                f.series.name = spec.key
-                report.append(f"{spec.key}: {pkg} / {r.get('name')} -> {f.how}; {len(f.series)} obs, "
-                              f"latest {f.series.index[-1]:%Y-%m} = {f.series.iloc[-1]:.4g}")
-                return f.series
-            except LookupError as exc:
-                errors.append(f"{pkg}: {exc}")
-        errors.append(f"{pkg} layout ({r.get('name')}):\n" + describe({"table": rows[:400]},
-                      r"unemploy|composite|gdp|domestic|change|seasonal|year|period", max_lines=30))
+                rows = load_rows(r["url"], r.get("format", "CSV"))
+            except Exception as exc:
+                errors.append(f"{pkg}: {label}: {exc.__class__.__name__}: {exc}")
+                continue
+            for lp in spec.label_patterns:
+                try:
+                    f = series_from_rows(rows, lp, valid=spec.valid)
+                    f.series.name = spec.key
+                    report.append(f"{spec.key}: {pkg} / {label} -> {f.how}; {len(f.series)} obs, "
+                                  f"latest {f.series.index[-1]:%Y-%m} = {f.series.iloc[-1]:.4g}")
+                    return f.series
+                except LookupError as exc:
+                    errors.append(f"{pkg}: {label}: {exc}")
+            errors.append(f"{pkg} layout of {label}:\n" + describe({"table": rows[:400]},
+                          r"unemploy|composite|gdp|domestic|change|seasonal|year|period|sv|figure", max_lines=30))
     raise LookupError(f"{spec.key} not found\n" + "\n".join(errors))
 
 
@@ -294,8 +344,10 @@ ORO_PACKAGE = "hk-oro-oro-statistics"
 
 
 def _oro_series(res: list[dict], name_pattern: str, key: str, valid: tuple[float, float], report: list[str]) -> pd.Series:
-    files = pick(res, name_pattern, formats=("CSV", "XLSX", "XLS"),
-                 exclude=r"search|individual voluntary|IVA|Chinese|中文|annual statistics on number")
+    files = pick(res, name_pattern, formats=("CSV", "XLSX", "XLS", "JSON"),
+                 exclude=r"search|individual voluntary|IVA|Chinese|中文|annual statistics on number|profile|percentage|type")
+    monthly = [f for f in files if re.search(r"month", f.get("name", ""), re.I)]
+    files = monthly or files
     files = [f for f in files if not re.search(r"\((traditional|simplified) chinese\)", f.get("name", ""), re.I)]
     if not files:
         raise LookupError(f"ORO: no file matching /{name_pattern}/")
@@ -336,6 +388,7 @@ def fetch_oro(report: list[str]) -> dict[str, pd.Series]:
                 r12.name = f"{key}_12m"
                 out[f"{key}_12m"] = r12
         except Exception as exc:
-            report.append(f"FAILED {key}: {exc}\nORO files: " + "; ".join(
-                f"{r.get('name')} [{r.get('format')}]" for r in res[:40]))
+            names = sorted({r.get("name", "") for r in res if "(English)" in r.get("name", "")
+                            or not re.search(r"chinese", r.get("name", ""), re.I)})
+            report.append(f"FAILED {key}: {exc}\nAll ORO English files ({len(names)}):\n- " + "\n- ".join(names))
     return out

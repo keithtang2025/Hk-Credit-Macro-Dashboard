@@ -157,3 +157,95 @@ def test_oro_monthly_file_with_year_in_name(monkeypatch):
 def test_series_from_rows_raises_with_no_match():
     with pytest.raises(LookupError):
         govhk.series_from_rows([["a", "b"], ["Jan 2026", 1]], r"nothing")
+
+
+# ---------------------------------------------------------------- fixes after the first live run
+
+def test_mm_yyyy_period():
+    assert parse_period("01-1993")[0] == pd.Timestamp("1993-01-31")
+    assert parse_period("10-2026")[0] == pd.Timestamp("2026-10-31")
+
+
+def test_rvd_real_layout_from_first_run():
+    rows = [["PRIVATE  DOMESTIC  -  PRICE  INDICES  BY  CLASS"],
+            ["Month", "Class A", "Class A - Remarks", "Class B", "Class B - Remarks", "Class C", "Class C - Remarks",
+             "Class D", "Class D - Remarks", "Class E", "Class E - Remarks", "Classes A, B & C",
+             "Classes A, B & C - Remarks", "Classes D & E", "Classes D & E - Remarks", "All Classes", "All Classes - Remarks"]]
+    for i, p in enumerate(pd.period_range("2024-01", "2026-09", freq="M")):
+        rows.append([p.strftime("%m-%Y"), 300, None, 290, None, 280, None, 270, None, 260, None, 285, None, 265,
+                     None, 300 - i, "(p)" if i > 30 else None])
+    f = govhk.series_from_rows(rows, r"all classes|^\s*overall|all\s*$|territory-wide", valid=(30, 600))
+    assert f.series.index[-1] == pd.Timestamp("2026-09-30") and f.series.iloc[-1] == 300 - 32
+    assert "All Classes" in f.how and "Remarks" not in f.how
+
+
+def test_hkma_falls_back_when_pagesize_rejected(monkeypatch):
+    import requests
+
+    recs = [{"end_of_month": f"2026-{m:02d}", "usd": 7.8} for m in range(10, 0, -1)]
+
+    def fake_get(url, params=None, **kw):
+        if "pagesize" in params:
+            resp = FakeResp()
+            def bad():
+                raise requests.HTTPError("405 Client Error: Not Allowed")
+            resp.raise_for_status = bad
+            return resp
+        off = params["offset"]
+        return FakeResp({"header": {"success": True}, "result": {"records": recs[off:off + 4]}})
+
+    monkeypatch.setattr(hkma.requests, "get", fake_get)
+    assert len(hkma.get_records("x")) == 10
+
+
+def test_hkma_keeps_rows_when_deep_page_refused(monkeypatch):
+    import requests
+    monkeypatch.setattr(hkma, "PAGE", 5)
+
+    def fake_get(url, params=None, **kw):
+        if params["offset"] >= 10:
+            resp = FakeResp()
+            def bad():
+                raise requests.HTTPError("405")
+            resp.raise_for_status = bad
+            return resp
+        return FakeResp({"header": {"success": True},
+                         "result": {"records": [{"end_of_date": f"2026-10-{d:02d}", "closing_balance": 1}
+                                                for d in range(params["offset"] + 1, params["offset"] + 6)]}})
+
+    monkeypatch.setattr(hkma.requests, "get", fake_get)
+    assert len(hkma.get_records("x")) == 10
+
+
+def test_web_page_is_not_data(monkeypatch):
+    monkeypatch.setattr(govhk, "_get", lambda url, **kw: FakeResp(content=b"<!DOCTYPE html><html lang='en'>"))
+    with pytest.raises(govhk.NotData):
+        govhk.load_rows("u", "CSV")
+
+
+def test_csd_json_long_format(monkeypatch):
+    import json
+    recs = []
+    for p in pd.period_range("2025-09", "2026-09", freq="M"):
+        recs.append({"period": p.strftime("%Y%m"), "sv": "UR", "svDesc": "Unemployment rate (%)",
+                     "sd_value": "SA", "sdDesc": "Seasonally adjusted", "figure": 3.5 + p.month / 100})
+        recs.append({"period": p.strftime("%Y%m"), "sv": "UR", "svDesc": "Unemployment rate (%)",
+                     "sd_value": "Raw", "sdDesc": "Not seasonally adjusted", "figure": 9.9})
+        recs.append({"period": p.strftime("%Y%m"), "sv": "LF", "svDesc": "Labour force ('000)",
+                     "sd_value": "Raw", "sdDesc": "", "figure": 3800})
+    body = json.dumps({"header": {"title": "Table 210-06101"}, "dataSet": recs}).encode()
+    monkeypatch.setattr(govhk, "_get", lambda url, **kw: FakeResp(content=body))
+    rows = govhk.load_rows("u", "JSON")
+    f = govhk.series_from_rows(rows, govhk.CSD_SPECS[0].label_patterns[0], valid=(0.5, 15))
+    assert f.series.index[-1] == pd.Timestamp("2026-09-30") and f.series.iloc[-1] == pytest.approx(3.59)
+
+
+def test_snapshot_accumulates_history(tmp_path, monkeypatch):
+    from src import data as data_mod
+    monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
+    old = pd.Series([1.0, 2.0], index=pd.to_datetime(["2025-01-31", "2025-02-28"]))
+    new = pd.Series([2.5, 3.0], index=pd.to_datetime(["2025-02-28", "2025-03-31"]))
+    data_mod.save_snapshot({"x": old})
+    data_mod.save_snapshot({"x": new})
+    s = data_mod.load_snapshot("x")
+    assert list(s.values) == [1.0, 2.5, 3.0]
