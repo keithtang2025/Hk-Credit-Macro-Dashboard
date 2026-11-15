@@ -63,6 +63,9 @@ def test_fetch_all_isolates_failures(monkeypatch):
     monkeypatch.setattr(sources.govhk, "fetch_csd", lambda report: {"unemployment": pd.Series(3.9, index=idx)})
     monkeypatch.setattr(sources.govhk, "fetch_rvd", boom)
     monkeypatch.setattr(sources.govhk, "fetch_oro", lambda report: {})
+    # stub every source so the test never touches the network
+    monkeypatch.setattr(sources.govhk, "fetch_rvd_yields", lambda report: {})
+    monkeypatch.setattr(sources.market, "fetch_hsi", boom)
     series, errors, report = sources.fetch_all()
     assert set(series) == {"base_rate", "unemployment"}
     assert "RVD property price index (via DATA.GOV.HK)" in errors and "site down" in report
