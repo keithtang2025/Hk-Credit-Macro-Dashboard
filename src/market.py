@@ -93,6 +93,17 @@ def parse_performance(body) -> tuple[float, float | None, pd.Timestamp, str]:
 
 def parse_factsheet_text(text: str) -> tuple[float, float | None, pd.Timestamp | None]:
     flat = re.sub(r"\s+", " ", text)
+    # HSI factsheet "INDEX FUNDAMENTALS" table: the labels come first, then the HSI row,
+    # e.g. "Index Dividend Yield (%) PE Ratio (Times) 1 - Yr 3 - Yr 5 - Yr HSI 3.14 13.04 18.29 ..."
+    m = re.search(r"Dividend Yield\s*\(%\)\s*P\s*/?\s*E Ratio\s*\(Times\).{0,200}?\bHSI\s+(\d+\.\d+)\s+(\d+\.\d+)",
+                  flat, re.I)
+    when = re.search(r"as (?:at|of) (\d{1,2} \w{3,9} \d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})", flat, re.I)
+    t = pd.to_datetime(when.group(1), errors="coerce", dayfirst=True) if when else None
+    t = None if t is None or pd.isna(t) else t
+    if m:
+        dy, pe = float(m.group(1)), float(m.group(2))
+        if DY_OK[0] <= dy <= DY_OK[1]:
+            return dy, (pe if PE_OK[0] <= pe <= PE_OK[1] else None), t
     dy = _after(flat, r"div(?:idend)?\.?\s*yield", DY_OK)
     if dy is None:
         raise LookupError("no dividend yield figure in the factsheet. Text near 'yield' / 'P/E': "
@@ -106,7 +117,7 @@ def parse_factsheet_text(text: str) -> tuple[float, float | None, pd.Timestamp |
 def _after(flat: str, label: str, ok: tuple[float, float], span: int = 60) -> float | None:
     """First number in range within `span` characters after the label."""
     for m in re.finditer(label, flat, re.I):
-        for n in re.finditer(r"(?<![\d.])(\d{1,2}(?:\.\d{1,2})?)(?![\d.])", flat[m.end():m.end() + span]):
+        for n in re.finditer(r"(?<![\d.])(\d{1,2}\.\d{1,2})(?![\d.])", flat[m.end():m.end() + span]):
             v = float(n.group(1))
             if ok[0] <= v <= ok[1]:
                 return v

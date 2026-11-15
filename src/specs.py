@@ -35,6 +35,8 @@ SERIES: dict[str, SeriesInfo] = {
     # equity market
     "hsi_dividend_yield": SeriesInfo("Hang Seng Index dividend yield", "Hang Seng Indexes"),
     "hsi_pe": SeriesInfo("Hang Seng Index P/E ratio", "Hang Seng Indexes", "times"),
+    "hkex_mb_yield": SeriesInfo("Main Board average dividend yield", "HKEX"),
+    "hkex_mb_pe": SeriesInfo("Main Board average P/E ratio", "HKEX", "times"),
     # economy
     "unemployment": SeriesInfo("Unemployment rate (seasonally adjusted)", "C&SD"),
     "cpi_yoy": SeriesInfo("Composite CPI, year-on-year", "C&SD"),

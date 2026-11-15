@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from . import govhk, hkma, market
+from . import govhk, hkex, hkma, market
 
 HISTORY_START = pd.Timestamp("2010-01-01")
 
@@ -37,6 +37,7 @@ def fetch_all() -> tuple[dict[str, pd.Series], dict[str, str], str]:
     run("RVD rental yields (via DATA.GOV.HK)", govhk.fetch_rvd_yields)
     run("Official Receiver's Office (via DATA.GOV.HK)", govhk.fetch_oro)
     run("Hang Seng Indexes (dividend yield, P/E)", market.fetch_hsi)
+    run("HKEX monthly bulletin (Main Board P/E, yield)", hkex.fetch_hkex)
 
     series = {k: s[s.index >= HISTORY_START] for k, s in series.items() if s is not None and len(s)}
     return series, errors, "\n".join(report)

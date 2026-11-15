@@ -18,7 +18,8 @@ The Hong Kong sister project of the [Australia Credit Risk Macro Dashboard](http
 | | Mortgage delinquency ratio (overdue 3 months or more) | HKMA API | Monthly |
 | | Mortgages in negative equity, and their delinquency ratio | HKMA quarterly survey | Quarterly, manual |
 | Yields and valuation | Residential rental yield (average of classes A to E, and Class A) and its gap to 1-month HIBOR | RVD via DATA.GOV.HK; HKMA | Monthly |
-| | Hang Seng Index dividend yield and P/E ratio | Hang Seng Indexes | Daily reading, kept as month end |
+| | Hang Seng Index dividend yield and P/E ratio | Hang Seng Indexes factsheet | Daily reading, kept as month end |
+| | Main Board average dividend yield and P/E ratio (history from 2010) | HKEX monthly bulletin | Monthly |
 | Banking asset quality | Classified loan ratio of retail banks | HKMA API | Quarterly |
 | | Credit card charge-off ratio | HKMA API | Quarterly |
 | | Loan growth; loan-to-deposit ratio | HKMA API | Monthly |
@@ -77,6 +78,7 @@ revisions("gdp_yoy")                  # every revision: old value, new value, da
 app.py                       Dash app: KPI cards, scorecard, charts in five sections, data status panel
 src/hkma.py                  HKMA open API client and series builders
 src/govhk.py                 DATA.GOV.HK catalogue lookup and table readers for C&SD, RVD and ORO
+src/hkex.py                  HKEX monthly bulletin: Main Board average P/E and yield, backfilled from 2010
 src/market.py                Hang Seng Index dividend yield and P/E (performance feed, factsheet fallback)
 src/periods.py               Parser for the period formats Hong Kong agencies use
 src/xlsx_scan.py             Label-based series finder for spreadsheets

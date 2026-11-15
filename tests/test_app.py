@@ -66,6 +66,7 @@ def test_fetch_all_isolates_failures(monkeypatch):
     # stub every source so the test never touches the network
     monkeypatch.setattr(sources.govhk, "fetch_rvd_yields", lambda report: {})
     monkeypatch.setattr(sources.market, "fetch_hsi", boom)
+    monkeypatch.setattr(sources.hkex, "fetch_hkex", lambda report: {})
     series, errors, report = sources.fetch_all()
     assert set(series) == {"base_rate", "unemployment"}
     assert "RVD property price index (via DATA.GOV.HK)" in errors and "site down" in report

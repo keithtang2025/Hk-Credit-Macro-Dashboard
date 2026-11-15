@@ -486,3 +486,52 @@ def test_hsi_page_model_follows_data_link(monkeypatch):
     monkeypatch.setattr(market.requests, "get", fake_get)
     dy, pe, when, how = market._from_page_model([])
     assert (dy, pe, when) == (3.4, 10.9, pd.Timestamp("2026-11-13")) and "indicators.json" in how
+
+
+def test_hsi_factsheet_real_layout():
+    from src import market
+    text = ("+1.93 -6.53 *Annualised INDEX FUNDAMENTALS Annual Volatility*(%)Index Dividend Yield (%) "
+            "PE Ratio (Times) 1 - Yr 3 - Yr 5 - Yr HSI 3.14 13.04 18.29 23.03 24.78 *Annual Volatility was")
+    dy, pe, _ = market.parse_factsheet_text(text)
+    assert (dy, pe) == (3.14, 13.04)
+
+
+HKEX_PAGE = """<html><body><h2>Main Board</h2><table>
+<tr><td></td><td>February 2017</td><td>February 2016</td><td>Year on year change (%)</td></tr>
+<tr><td>Market capitalisation (HK$mil)</td><td>26,354,927</td><td>21,249,569</td><td>24.03</td></tr>
+<tr><td>Average P/E ratio (times)</td><td>11.83</td><td>8.81</td><td>&nbsp;</td></tr>
+<tr><td>Average yield (%)</td><td>3.09</td><td>3.99</td><td></td></tr></table></body></html>"""
+
+
+def test_hkex_bulletin_page():
+    from src import hkex
+    got = hkex.parse_page(HKEX_PAGE)
+    assert got["pe"] == (11.83, 8.81) and got["yield"] == (3.09, 3.99)
+
+
+def test_hkex_backfill_and_incremental(tmp_path, monkeypatch):
+    from src import data as data_mod, hkex
+    monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
+    monkeypatch.setattr(hkex, "START", pd.Timestamp("2026-05-31"))
+    calls = []
+
+    class R:
+        def __init__(self, code, text=""):
+            self.status_code, self.text = code, text
+
+    def fake_get(self, url, **kw):
+        calls.append(url)
+        yymm = url[-8:-4]
+        if yymm == "2610":
+            return R(404)  # newest month not published yet
+        return R(200, HKEX_PAGE.replace("3.09", f"3.{yymm[-2:]}"))
+    monkeypatch.setattr(hkex.requests.Session, "get", fake_get)
+    monkeypatch.setattr(hkex.pd.Timestamp, "now", classmethod(lambda cls, tz=None: pd.Timestamp("2026-11-15", tz=tz)))
+    out = hkex.fetch_hkex([])
+    s = out["hkex_mb_yield"]
+    assert list(s.index.strftime("%Y-%m")) == ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+    assert s.iloc[-1] == 3.09 and out["hkex_mb_pe"].iloc[-1] == 11.83
+    data_mod.save_snapshot(out)
+    calls.clear()
+    hkex.fetch_hkex([])
+    assert len(calls) == 4  # only Jul to Oct are asked for again
