@@ -30,6 +30,7 @@ SERIES: dict[str, SeriesInfo] = {
     "home_price_yoy": SeriesInfo("Home prices, year-on-year change", "RVD"),
     "rental_yield": SeriesInfo("Residential rental yield (average of classes A to E)", "RVD"),
     "rental_yield_class_a": SeriesInfo("Residential rental yield, Class A (under 40 m2)", "RVD"),
+    "rental_yield_class_e": SeriesInfo("Residential rental yield, Class E (160 m2 and over)", "RVD"),
     "rental_yield_spread": SeriesInfo("Rental yield less 1-month HIBOR", "RVD / HKMA", "pp"),
     # equity market
     "hsi_dividend_yield": SeriesInfo("Hang Seng Index dividend yield", "Hang Seng Indexes"),

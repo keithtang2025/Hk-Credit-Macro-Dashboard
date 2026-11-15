@@ -25,7 +25,7 @@ HEADERS = {
     "Accept": "application/json, text/plain, */*",
 }
 MANUAL = Path(__file__).resolve().parent.parent / "data" / "manual" / "hsi_valuation.csv"
-DY_OK, PE_OK = (0.5, 15.0), (3.0, 60.0)
+DY_OK, PE_OK = (1.5, 10.0), (4.0, 40.0)  # plausible HSI ranges
 
 
 def _num(v) -> float | None:
@@ -200,6 +200,7 @@ def fetch_hsi(report: list[str]) -> dict[str, pd.Series]:
             r = requests.get(HSI_FACTSHEET, headers={**HEADERS, "Accept": "application/pdf"}, timeout=90)
             r.raise_for_status()
             text = "\n".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(r.content)).pages[:3])
+            report.append("factsheet text near 'yield' / 'P/E': " + _context(re.sub(r"\s+", " ", text))[:2500])
             dy, pe, when = parse_factsheet_text(text)
             how = "HSI factsheet PDF"
         except Exception as exc:

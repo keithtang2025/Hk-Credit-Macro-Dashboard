@@ -137,9 +137,11 @@ def serve_layout():
         ]),
         section("Yields and valuation", "yields", [
             card("Rental yield and funding cost", "RVD private domestic rental yields (annual rent as % of price), "
-                 "average of classes A to E and Class A (small flats), against 1-month HIBOR, which prices most new mortgages.",
-                 charts.lines([(s.get("rental_yield"), "Rental yield, all classes avg"),
-                               (s.get("rental_yield_class_a"), "Rental yield, Class A"),
+                 "average of classes A to E, Class A (under 40 m2) and Class E (160 m2 and over), against 1-month HIBOR, "
+                 "which prices most new mortgages.",
+                 charts.lines([(s.get("rental_yield"), "Average A to E"),
+                               (s.get("rental_yield_class_a"), "Class A (small)"),
+                               (s.get("rental_yield_class_e"), "Class E (large)"),
                                (s.get("hibor_1m"), "1M HIBOR")], years=10, label_last=False), "c-ryield"),
             card("Rental yield gap", "Rental yield less 1-month HIBOR, percentage points. Red bars mean rent earns "
                  "less than the HIBOR funding cost, which leaves investors and buyers more exposed.",

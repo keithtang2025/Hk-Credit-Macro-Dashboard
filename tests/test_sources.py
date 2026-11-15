@@ -416,6 +416,7 @@ def test_rvd_yields_average_of_classes(monkeypatch):
     ry, a = got["rental_yield"], got["rental_yield_class_a"]
     assert ry.index[-1] == pd.Timestamp("2026-09-30")
     assert ry.iloc[-1] == pytest.approx((3.8 + 3.4 + 3.0 + 2.6 + 2.2 + 0.32) / 5)
+    assert got["rental_yield_class_e"].iloc[-1] == pytest.approx(2.52)
     assert a.iloc[-1] == 3.8 and "average of classes A, B, C, D, E" in report[0]
 
 

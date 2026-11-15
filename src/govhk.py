@@ -469,10 +469,11 @@ def fetch_rvd_yields(report: list[str]) -> dict[str, pd.Series]:
     overall = overall.dropna()
     overall.name = "rental_yield"
     out["rental_yield"] = overall
-    if "A" in classes:
-        a = classes["A"].dropna()
-        a.name = "rental_yield_class_a"
-        out["rental_yield_class_a"] = a
+    for c in ("A", "E"):
+        if c in classes:
+            s = classes[c].dropna()
+            s.name = f"rental_yield_class_{c.lower()}"
+            out[s.name] = s
     report.append(f"rental_yield: {r.get('name')} -> {how}; {len(overall)} obs, "
                   f"latest {overall.index[-1]:%Y-%m} = {overall.iloc[-1]:.2f}%")
     for c, s in classes.items():
