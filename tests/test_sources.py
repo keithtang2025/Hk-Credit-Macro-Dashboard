@@ -513,6 +513,7 @@ def test_hkex_backfill_and_incremental(tmp_path, monkeypatch):
     from src import data as data_mod, hkex
     monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
     monkeypatch.setattr(hkex, "START", pd.Timestamp("2026-05-31"))
+    monkeypatch.setattr(hkex, "MISSING", tmp_path / "missing.txt")
     calls = []
 
     class R:
@@ -522,7 +523,7 @@ def test_hkex_backfill_and_incremental(tmp_path, monkeypatch):
     def fake_get(self, url, **kw):
         calls.append(url)
         import re
-        yymm = re.search(r"_(\d{4})\.html?$", url).group(1)
+        yymm = re.search(r"_(\d{4})\.(?:html?|json)$", url).group(1)
         if yymm == "2610":
             return R(404)  # newest month not published yet
         return R(200, HKEX_PAGE.replace("3.09", f"3.{yymm[-2:]}"))
@@ -535,5 +536,22 @@ def test_hkex_backfill_and_incremental(tmp_path, monkeypatch):
     data_mod.save_snapshot(out)
     calls.clear()
     hkex.fetch_hkex([])
-    # only Jul to Oct are asked for again: Oct (not published) is tried at every location
-    assert len(calls) == 3 + len(hkex.PATTERNS)
+    # only Oct (missing) and the last two held months are asked for again
+    assert len(calls) == 2 + len(hkex.PATTERNS)
+
+
+def test_hkex_json_bulletin():
+    import json
+    from src import hkex
+    body = json.dumps({"tables": [{"id": "rpt_Stock_market_highlights", "rows": [
+        ["Market capitalisation (HK$mil)", "42,400,000", "35,000,000", "21.1"],
+        ["Average P/E ratio (times)", "12.41", "10.95", ""], ["Average yield (%)", "3.37", "3.80", ""]]}]})
+    got = hkex.parse_any(body, "https://x/MonthlyBulletin_2610.json")
+    assert got["pe"] == (12.41, 10.95) and got["yield"] == (3.37, 3.80)
+
+
+def test_hkex_skips_known_missing_months(tmp_path, monkeypatch):
+    from src import hkex
+    monkeypatch.setattr(hkex, "MISSING", tmp_path / "m.txt")
+    (tmp_path / "m.txt").write_text("2026-05\n")
+    assert "2026-05" in hkex._known_missing()

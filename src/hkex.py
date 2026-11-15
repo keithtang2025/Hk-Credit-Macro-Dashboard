@@ -17,12 +17,20 @@ import requests
 # HKEX moved its site; the report name stayed (the bulletin page loads
 # "data=rpt_Stock_market_highlights_YYMM"), so try the known locations in turn.
 PATTERNS = [
+    # current site: one JSON per month (found by the discovery step on 15 Nov 2026)
+    "https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_{yymm}.json",
+    # old site: one HTML page per month (still served for 2016-07 to 2017-09)
     "https://www.hkex.com.hk/eng/stat/smstat/mthbull/rpt_Stock_market_highlights_{yymm}.htm",
-    "https://www.hkex.com.hk/-/media/HKEX-Market/Market-Data/Statistics/Consolidated-Reports/Monthly-Bulletin/rpt_Stock_market_highlights_{yymm}.htm",
-    "https://www.hkex.com.hk/eng/stat/smstat/mthbull/rpt_stock_market_highlights_{yymm}.htm",
-    "https://www.hkex.com.hk/-/media/HKEX-Market/Market-Data/Statistics/Consolidated-Reports/Monthly-Bulletin/rpt_Stock_market_highlights_{yymm}.html",
 ]
-PAGE = PATTERNS[0]
+MAX_REQUESTS, MAX_SECONDS = 150, 240
+from pathlib import Path  # noqa: E402
+
+MISSING = Path(__file__).resolve().parent.parent / "data" / "history" / "hkex_missing_months.txt"
+
+
+def _known_missing() -> set[str]:
+    return set(MISSING.read_text().split()) if MISSING.exists() else set()  # per run; the backfill continues on later runs
+PAGE = PATTERNS[1]
 BULLETIN = "https://www.hkex.com.hk/Market-Data/Statistics/Consolidated-Reports/Monthly-Bulletin?sc_lang=en"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; hk-credit-macro-dashboard/1.0)"}
 START = pd.Timestamp("2010-01-31")
@@ -48,14 +56,43 @@ def _first_two(text: str, label: str) -> tuple[float | None, float | None]:
 def parse_page(html: str) -> dict[str, tuple[float | None, float | None]]:
     """{'pe': (this month, a year earlier), 'yield': (...)} from one bulletin page."""
     text = _text(html)
-    return {"pe": _first_two(text, r"Average P\s*/\s*E ratio\s*\(times\)"),
+    return {"pe": _first_two(text, r"Average (?:P\s*/\s*E|price[\s-]*earnings?) ratios?\s*\((?:times|x)\)"),
             "yield": _first_two(text, r"Average (?:dividend )?yield\s*\(%\)")}
 
 
-def _months(last_have: pd.Timestamp | None, today: pd.Timestamp) -> list[pd.Timestamp]:
+def _flatten(o, out: list[str]) -> list[str]:
+    if isinstance(o, dict):
+        for v in o.values():
+            _flatten(v, out)
+    elif isinstance(o, list):
+        for v in o:
+            _flatten(v, out)
+    elif o is not None:
+        out.append(str(o))
+    return out
+
+
+def parse_any(resp_text: str, url: str) -> dict[str, tuple[float | None, float | None]]:
+    """Bulletin JSON (any nesting; HTML fragments inside are fine) or an HTML page."""
+    if url.endswith(".json"):
+        import json
+        try:
+            return parse_page(" ".join(_flatten(json.loads(resp_text), [])))
+        except ValueError:
+            pass
+    return parse_page(resp_text)
+
+
+def _months(have: pd.Series | None, today: pd.Timestamp) -> list[pd.Timestamp]:
+    """Months still to fetch, newest first: every missing month since START, plus the
+    last two held (HKEX can revise them)."""
     end = (today - pd.offsets.MonthEnd(1)).normalize()  # last complete month
-    start = START if last_have is None else max(START, last_have - pd.offsets.MonthEnd(2))
-    return list(pd.date_range(start, end, freq="ME"))[::-1]  # newest first
+    allm = pd.date_range(START, end, freq="ME")
+    if have is None or have.empty:
+        return list(allm)[::-1]
+    held = set(have.index.normalize())
+    recent = set(have.index[-2:].normalize())
+    return [m for m in allm[::-1] if m not in held or m in recent]
 
 
 def _discover(session, report: list[str]) -> list[str]:
@@ -79,42 +116,53 @@ def _discover(session, report: list[str]) -> list[str]:
     report.append("hkex discovery: " + ("; ".join(sorted(hits)[:30]) if hits else "no report paths in page or "
                                        f"{len(scripts)} scripts"))
     for h in hits:
-        if "{" in h or "rpt_" not in h and "mthbull" not in h:
+        if "{" in h or ("rpt_" not in h and "mthbull" not in h):
             continue
         base = h if h.startswith("http") else "https://www.hkex.com.hk" + ("" if h.startswith("/") else "/") + h
-        m = re.search(r"rpt_Stock_market_highlights_\d{4}", base, re.I)
+        m = re.search(r"(rpt_Stock_market_highlights_|MonthlyBulletin_)\d{4}", base, re.I)
         if m:
-            found.append(base[:m.start()] + "rpt_Stock_market_highlights_{yymm}" + base[m.end():])
+            pat = base[:m.start()] + m.group(1) + "{yymm}" + base[m.end():]
+            if pat not in found and pat not in PATTERNS:
+                found.append(pat)
     return found
 
 
 def fetch_hkex(report: list[str]) -> dict[str, pd.Series]:
+    import time
+
     from .data import load_snapshot  # local import: data imports specs only
 
     have_pe, have_dy = load_snapshot("hkex_mb_pe"), load_snapshot("hkex_mb_yield")
-    last = have_dy.index[-1] if have_dy is not None and len(have_dy) else None
-    months = _months(last, pd.Timestamp.now(tz="Asia/Hong_Kong").tz_localize(None))
+    today = pd.Timestamp.now(tz="Asia/Hong_Kong").tz_localize(None)
+    skip = _known_missing()
+    months = [m for m in _months(have_dy, today) if m.strftime("%Y-%m") not in skip]
+    newly_missing: list[str] = []
     pe, dy, statuses = {}, {}, []
     session = requests.Session()
     patterns = list(PATTERNS)
-    requests_made = 0
+    made, t0 = 0, time.monotonic()
     for i, m in enumerate(months):
-        if i == 3 and not dy:  # nothing for the latest months: look for the new location once
+        if i == 3 and not dy and (have_dy is None or have_dy.empty):
             patterns = _discover(session, report) + patterns
         hit = False
         for pat in list(patterns):
             url = pat.format(yymm=m.strftime("%y%m"))
+            made += 1
             try:
-                r = session.get(url, headers=HEADERS, timeout=30)
+                r = session.get(url, headers=HEADERS, timeout=20)
             except requests.RequestException as exc:
                 statuses.append(f"{m:%Y-%m}: {exc.__class__.__name__}")
                 continue
             if r.status_code != 200:
                 continue
-            got = parse_page(r.text)
+            got = parse_any(r.text, url)
             p, y = got["pe"][0], got["yield"][0]
             if y is None or not DY_OK[0] <= y <= DY_OK[1]:
-                statuses.append(f"{m:%Y-%m}: {url} has no 'Average yield' row; text starts " + _text(r.text)[:200])
+                flat = _text(" ".join(_flatten(__import__("json").loads(r.text), []))) if url.endswith(".json") \
+                    and r.text.lstrip().startswith(("{", "[")) else _text(r.text)
+                near = [flat[max(0, k.start() - 100):k.end() + 150] for k in re.finditer(r"yield|P\s*/\s*E|earning", flat, re.I)][:3]
+                statuses.append(f"{m:%Y-%m}: {url} has no 'Average yield'; "
+                                + (" || ".join(near) if near else "starts " + flat[:400]))
                 continue
             dy[m] = y
             if p is not None and PE_OK[0] <= p <= PE_OK[1]:
@@ -125,12 +173,17 @@ def fetch_hkex(report: list[str]) -> dict[str, pd.Series]:
             break
         if not hit:
             statuses.append(f"{m:%Y-%m}: not found")
-        # Pages from before the site move may still exist, so keep going through a gap
-        # in recent months; only a request budget stops the backfill.
-        requests_made += len(patterns) if not hit else 1
-        if requests_made > 1200:
-            statuses.append(f"{m:%Y-%m}: request budget reached, continuing next run")
+            if m < today - pd.DateOffset(months=6):  # long published: HKEX does not have it
+                newly_missing.append(m.strftime("%Y-%m"))
+        if made >= MAX_REQUESTS or time.monotonic() - t0 > MAX_SECONDS:
+            statuses.append(f"{m:%Y-%m}: stopped after {made} requests, the rest continue next run")
             break
+    if newly_missing:
+        try:
+            MISSING.parent.mkdir(parents=True, exist_ok=True)
+            MISSING.write_text("\n".join(sorted(skip | set(newly_missing))) + "\n")
+        except OSError:
+            pass
     if statuses:
         gaps = [s for s in statuses if s.endswith("not found")]
         other = [s for s in statuses if not s.endswith("not found")]
