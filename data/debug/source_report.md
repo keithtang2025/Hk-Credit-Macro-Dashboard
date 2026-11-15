@@ -43,4 +43,8 @@ page model: 0 data-looking links:
 factsheet text near 'yield' / 'P/E':  +1.93 -6.53 *Annualised INDEX FUNDAMENTALS Annual Volatility*(%)Index Dividend Yield (%) PE Ratio (Times) 1 - Yr 3 - Yr 5 - Yr HSI 3.14 13.04 18.29 23.03 24.78 *Annual Volatility was calculated based on d
 note: page model: LookupError: no HSI figures via page model; tried 
 note: performance feed: HTTPError: 404 Client Error: Not Found for url: https://www.hsi.com.hk/data/eng/rt/index-series/hsi/performance.do
-hsi_dividend_yield: HSI factsheet PDF; as of 2026-10-30 = 3.00%, P/E not found
+hsi_dividend_yield: HSI factsheet PDF; as of 2026-10-30 = 3.14%, P/E 13.04
+
+## HKEX monthly bulletin (Main Board P/E, yield)
+hkex notes: 2026-10: HTTP 404 | 2026-09: HTTP 404 | 2026-08: HTTP 404 | 2026-07: HTTP 404
+FAILED LookupError: HKEX monthly bulletin: no pages parsed (first tried https://www.hkex.com.hk/eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2610.htm)
