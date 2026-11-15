@@ -147,7 +147,8 @@ def serve_layout():
                  "less than the HIBOR funding cost, which leaves investors and buyers more exposed.",
                  charts.bars(s.get("rental_yield_spread"), years=4, fmt="{:+.1f}", ysuffix=" pp"), "c-rgap"),
             card("Stock, property and cash yields", "Hang Seng Index dividend yield vs residential rental yield and "
-                 "3-month HIBOR, %. HSI dividend yield history builds month by month from the factsheet.",
+                 "3-month HIBOR, %. HSI history from Hang Seng Indexes' dividend yield report "
+                 "(data/manual/hsi_valuation.csv); later months from the monthly factsheet.",
                  charts.lines([(s.get("hsi_dividend_yield"), "HSI dividend yield"),
                                (s.get("rental_yield"), "Rental yield"), (s.get("hibor_3m"), "3M HIBOR")],
                               years=10, label_last=False), "c-yields"),
