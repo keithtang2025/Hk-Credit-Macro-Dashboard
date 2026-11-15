@@ -359,7 +359,7 @@ def test_usdhkd_falls_back_to_fred(monkeypatch):
         f"{d:%Y-%m-%d},{'.' if i % 50 == 0 else round(7.80 + (i % 5) / 1000, 4)}" for i, d in enumerate(days))
 
     def fake_get(url, params=None, **kw):
-        assert "fred" in url and params == {"id": "DEXHKUS"}
+        assert "fred" in url and params["id"] == "DEXHKUS"
         r = FakeResp()
         r.text = csv
         return r
@@ -370,3 +370,26 @@ def test_usdhkd_falls_back_to_fred(monkeypatch):
     s = out["usdhkd"]
     assert s.index[-1] == pd.Timestamp("2026-11-30") and 7.75 <= s.iloc[-1] <= 7.85
     assert len(s) == 23 and "FRED DEXHKUS" in report
+
+
+def test_usdhkd_falls_back_to_ecb_cross_rate(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(hkma, "get_records", lambda *a, **k: (_ for _ in ()).throw(requests.HTTPError("405")))
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    months = [str(p) for p in pd.period_range("2025-01", "2026-10", freq="M")]
+
+    def fake_get(url, params=None, **kw):
+        if "fred" in url:
+            raise requests.ReadTimeout("Read timed out")
+        cur = "HKD" if ".HKD." in url else "USD"
+        val = 8.5813 if cur == "HKD" else 1.1000  # 8.5813 / 1.1 = 7.8012 HKD per USD
+        r = FakeResp()
+        r.text = "KEY,FREQ,TIME_PERIOD,OBS_VALUE\n" + "\n".join(f"EXR.M.{cur}.EUR.SP00.E,M,{m},{val}" for m in months)
+        return r
+
+    monkeypatch.setattr(hkma.requests, "get", fake_get)
+    out, report = hkma.fetch_hkma()
+    s = out["usdhkd"]
+    assert s.iloc[-1] == pytest.approx(7.8012, abs=1e-4) and s.index[-1] == pd.Timestamp("2026-10-31")
+    assert "ECB reference rates" in report

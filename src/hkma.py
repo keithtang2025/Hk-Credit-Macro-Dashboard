@@ -115,18 +115,53 @@ def month_end_last(daily: pd.Series, key: str) -> pd.Series:
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
 
-def fred_series(series_id: str, timeout: float = 60.0) -> pd.Series:
-    """A FRED series as a daily pd.Series (no API key needed for the CSV download)."""
-    import io
+def fred_series(series_id: str, start: str = "2010-01-01", timeout: float = 90.0, tries: int = 2) -> pd.Series:
+    """A FRED series as a daily pd.Series (no API key needed for the CSV download).
 
-    r = requests.get(FRED_CSV, params={"id": series_id}, timeout=timeout, headers={"User-Agent": USER_AGENT})
-    r.raise_for_status()
+    FRED can be slow to answer cloud servers, so ask only for recent data and retry."""
+    import io
+    import time
+
+    last_exc = None
+    for attempt in range(tries):
+        try:
+            r = requests.get(FRED_CSV, params={"id": series_id, "cosd": start}, timeout=timeout,
+                             headers={"User-Agent": USER_AGENT})
+            r.raise_for_status()
+            break
+        except requests.RequestException as exc:
+            last_exc = exc
+            time.sleep(5 * (attempt + 1))
+    else:
+        raise last_exc
     df = pd.read_csv(io.StringIO(r.text))
     if df.shape[1] < 2:
         raise ValueError(f"FRED {series_id}: unexpected CSV columns {list(df.columns)}")
     s = pd.Series(pd.to_numeric(df.iloc[:, 1], errors="coerce").values,
                   index=pd.to_datetime(df.iloc[:, 0], errors="coerce")).dropna()
     return s[s.index.notna()].sort_index()
+
+
+ECB_API = "https://data-api.ecb.europa.eu/service/data/EXR/"
+
+
+def ecb_month_end(currency: str, timeout: float = 60.0) -> pd.Series:
+    """ECB end-of-month reference rate: units of `currency` per EUR."""
+    import io
+
+    r = requests.get(f"{ECB_API}M.{currency}.EUR.SP00.E", params={"format": "csvdata", "startPeriod": "2010-01"},
+                     timeout=timeout, headers={"User-Agent": USER_AGENT})
+    r.raise_for_status()
+    df = pd.read_csv(io.StringIO(r.text))
+    idx = pd.to_datetime(df["TIME_PERIOD"], format="%Y-%m") + pd.offsets.MonthEnd(0)
+    return pd.Series(pd.to_numeric(df["OBS_VALUE"], errors="coerce").values, index=idx).dropna().sort_index()
+
+
+def ecb_usdhkd() -> pd.Series:
+    """HKD per USD as the cross of the ECB's HKD/EUR and USD/EUR month-end rates."""
+    s = (ecb_month_end("HKD") / ecb_month_end("USD")).dropna()
+    s.name = "usdhkd"
+    return s
 
 
 # ---------------------------------------------------------------- series builders
@@ -219,7 +254,18 @@ def fetch_hkma() -> tuple[dict[str, pd.Series], str]:
                 return {"usdhkd": s}
             problems.append("FRED DEXHKUS: no values in range")
         except Exception as exc:
-            problems.append(f"FRED DEXHKUS: {exc.__class__.__name__}: {exc}")
+            problems.append(f"FRED DEXHKUS: {exc.__class__.__name__}: {str(exc)[:120]}")
+        # Last resort: ECB month-end HKD and USD reference rates (both per EUR), crossed
+        try:
+            s = ecb_usdhkd()
+            s = s[(s > 7.0) & (s < 8.5)]
+            if len(s):
+                notes.append("usdhkd source: ECB reference rates, HKD/EUR divided by USD/EUR, month-end; earlier "
+                             "sources failed: " + "; ".join(p.split(":")[0] for p in problems))
+                return {"usdhkd": s}
+            problems.append("ECB cross rate: no values in range")
+        except Exception as exc:
+            problems.append(f"ECB cross rate: {exc.__class__.__name__}: {str(exc)[:120]}")
         raise LookupError("; ".join(problems))
 
     step("HKMA banking statistics", banking)

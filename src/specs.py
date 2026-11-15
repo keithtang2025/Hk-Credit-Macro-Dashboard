@@ -17,7 +17,7 @@ SERIES: dict[str, SeriesInfo] = {
     "hibor_1m": SeriesInfo("1-month HIBOR fixing", "HKMA"),
     "hibor_3m": SeriesInfo("3-month HIBOR fixing", "HKMA"),
     "aggregate_balance": SeriesInfo("Aggregate balance", "HKMA", "HK$ bn"),
-    "usdhkd": SeriesInfo("USD/HKD spot", "HKMA / FRED", "HKD"),
+    "usdhkd": SeriesInfo("USD/HKD spot", "HKMA / FRED / ECB", "HKD"),
     # banking asset quality
     "classified_loans": SeriesInfo("Classified loan ratio (retail banks)", "HKMA"),
     "mortgage_delinquency": SeriesInfo("Mortgage delinquency ratio (3m+)", "HKMA"),
