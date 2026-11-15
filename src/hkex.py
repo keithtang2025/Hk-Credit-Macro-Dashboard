@@ -17,15 +17,15 @@ import requests
 # HKEX moved its site; the report name stayed (the bulletin page loads
 # "data=rpt_Stock_market_highlights_YYMM"), so try the known locations in turn.
 PATTERNS = [
-    # current site: one JSON per month (found by the discovery step on 15 Nov 2026)
-    "https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_{yymm}.json",
+    # current site: the month's index (MonthlyBulletin_YYMM.json) points to this report
+    "https://www.hkex.com.hk/eng/stat/smstat/mthbull/rpt_Stock_market_highlights_{yymm}.json",
     # old site: one HTML page per month (still served for 2016-07 to 2017-09)
     "https://www.hkex.com.hk/eng/stat/smstat/mthbull/rpt_Stock_market_highlights_{yymm}.htm",
 ]
 MAX_REQUESTS, MAX_SECONDS = 150, 240
 from pathlib import Path  # noqa: E402
 
-MISSING = Path(__file__).resolve().parent.parent / "data" / "history" / "hkex_missing_months.txt"
+MISSING = Path(__file__).resolve().parent.parent / "data" / "history" / "hkex_missing_months_v2.txt"
 
 
 def _known_missing() -> set[str]:
@@ -142,6 +142,7 @@ def fetch_hkex(report: list[str]) -> dict[str, pd.Series]:
     patterns = list(PATTERNS)
     made, t0 = 0, time.monotonic()
     for i, m in enumerate(months):
+        answered = False
         if i == 3 and not dy and (have_dy is None or have_dy.empty):
             patterns = _discover(session, report) + patterns
         hit = False
@@ -155,6 +156,7 @@ def fetch_hkex(report: list[str]) -> dict[str, pd.Series]:
                 continue
             if r.status_code != 200:
                 continue
+            answered = True
             got = parse_any(r.text, url)
             p, y = got["pe"][0], got["yield"][0]
             if y is None or not DY_OK[0] <= y <= DY_OK[1]:
@@ -173,7 +175,7 @@ def fetch_hkex(report: list[str]) -> dict[str, pd.Series]:
             break
         if not hit:
             statuses.append(f"{m:%Y-%m}: not found")
-            if m < today - pd.DateOffset(months=6):  # long published: HKEX does not have it
+            if not answered and m < today - pd.DateOffset(months=6):  # long published: HKEX does not have it
                 newly_missing.append(m.strftime("%Y-%m"))
         if made >= MAX_REQUESTS or time.monotonic() - t0 > MAX_SECONDS:
             statuses.append(f"{m:%Y-%m}: stopped after {made} requests, the rest continue next run")

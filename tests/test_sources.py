@@ -555,3 +555,39 @@ def test_hkex_skips_known_missing_months(tmp_path, monkeypatch):
     monkeypatch.setattr(hkex, "MISSING", tmp_path / "m.txt")
     (tmp_path / "m.txt").write_text("2026-05\n")
     assert "2026-05" in hkex._known_missing()
+
+
+def test_hkma_quarterly_records():
+    recs = [{"end_of_quarter": "2026-Q2", "cl_gross_total": "1.96"},
+            {"end_of_quarter": "2026-Q1", "cl_gross_total": "2.06"},
+            {"end_of_quarter": "2025-Q4", "cl_gross_total": "2.19"}]
+    s = hkma.quarterly(recs, "cl_gross_total", "classified_loans")
+    assert list(s.index.strftime("%Y-%m-%d")) == ["2025-12-31", "2026-03-31", "2026-06-30"]
+    assert s.iloc[-1] == 1.96
+
+
+def test_hkma_long_history_replaces_short_summary(monkeypatch):
+    months = pd.period_range("2015-01", "2026-09", freq="M")
+    quarters = pd.period_range("2015Q1", "2026Q2", freq="Q")
+
+    def fake_records(path, params=None, max_rows=5000, timeout=60.0):
+        if path.endswith("loans-by-type-ais"):
+            return [{"end_of_month": p.strftime("%Y-%m"), "total_loans": 1000 * 1.05 ** (i / 12),
+                     "loans_inhk_total": 700 * 1.03 ** (i / 12)} for i, p in enumerate(months)][::-1]
+        if path.endswith("assetquality-retailbanks"):
+            return [{"end_of_quarter": f"{q.year}-Q{q.quarter}", "cl_gross_total": 1.5} for q in quarters][::-1]
+        if path.endswith("credit-card-lending-survey"):
+            return [{"end_of_quarter": f"{q.year}-Q{q.quarter}", "during_chargeoff_amt": 1.2,
+                     "during_avg_total_receivables": 200} for q in quarters][::-1]
+        raise RuntimeError("not in this test")
+    monkeypatch.setattr(hkma, "get_records", fake_records)
+
+    def no_network(*a, **k):
+        raise hkma.requests.ConnectionError("offline in tests")
+    monkeypatch.setattr(hkma.requests, "get", no_network)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    got, text = hkma.fetch_hkma()
+    assert got["loan_growth"].index[0] == pd.Timestamp("2016-01-31")
+    assert got["loan_growth"].iloc[-1] == pytest.approx(5.0)
+    assert got["classified_loans"].index[0] == pd.Timestamp("2015-03-31")
+    assert got["card_chargeoff"].iloc[-1] == pytest.approx(2.4)

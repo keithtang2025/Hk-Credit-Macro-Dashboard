@@ -90,6 +90,35 @@ def to_frame(records: list[dict]) -> pd.DataFrame:
     return df[~df.index.duplicated(keep="first")].sort_index()
 
 
+def _quarter_end(v) -> pd.Timestamp | None:
+    s = str(v).strip()
+    m = re.fullmatch(r"(\d{4})[-\s]?Q?([1-4])", s, re.I) or re.fullmatch(r"(\d{4})-?Q([1-4])", s, re.I)
+    if m:
+        return (pd.Timestamp(int(m.group(1)), int(m.group(2)) * 3, 1) + pd.offsets.MonthEnd(0)).normalize()
+    t = pd.to_datetime(s, errors="coerce")
+    return None if pd.isna(t) else (t + pd.offsets.MonthEnd(0)).normalize()
+
+
+def quarterly(records: list[dict], name: str, key: str) -> pd.Series:
+    """A series from records dated by quarter ('2026-Q2') or by month."""
+    if not records:
+        raise ValueError("no records")
+    dk = next((k for k in records[0] if k.startswith("end_of") or "date" in k or "quarter" in k), None)
+    if dk is None:
+        raise KeyError(f"no date field: {list(records[0])}")
+    if name not in records[0]:
+        raise KeyError(f"HKMA field '{name}' missing; available: {', '.join(records[0])}")
+    pts = {}
+    for r in records:
+        d = _quarter_end(r.get(dk))
+        v = pd.to_numeric(r.get(name), errors="coerce")
+        if d is not None and pd.notna(v):
+            pts.setdefault(d, float(v))
+    s = pd.Series(pts, dtype=float).sort_index()
+    s.name = key
+    return s
+
+
 def field(df: pd.DataFrame, name: str, key: str) -> pd.Series:
     if name not in df.columns:
         raise KeyError(f"HKMA field '{name}' missing; available: {', '.join(df.columns)}")
@@ -195,6 +224,44 @@ def fetch_hkma() -> tuple[dict[str, pd.Series], str]:
         res["loan_to_deposit"] = ldr
         return res
 
+    def long_history():
+        """Full-history tables from the banking section of the Monthly Statistical Bulletin.
+        They replace the short (about 20 periods) summary series above when available."""
+        res = {}
+        problems = []
+        try:
+            df = to_frame(get_records("monthly-statistical-bulletin/banking/loans-by-type-ais", max_rows=8000))
+            res["loan_growth"] = yoy_growth(field(df, "total_loans", "x"), "loan_growth")
+            res["loan_growth_hk"] = yoy_growth(field(df, "loans_inhk_total", "x"), "loan_growth_hk")
+        except Exception as exc:
+            problems.append(f"loans-by-type-ais: {exc.__class__.__name__}: {exc}")
+        try:
+            recs = get_records("monthly-statistical-bulletin/banking/assetquality-retailbanks", max_rows=8000)
+            s = quarterly(recs, "cl_gross_total", "classified_loans")
+            if len(s) and s.tail(8).between(0, 20).all():
+                res["classified_loans"] = s
+        except Exception as exc:
+            problems.append(f"assetquality-retailbanks: {exc.__class__.__name__}: {exc}")
+        try:
+            recs = get_records("monthly-statistical-bulletin/banking/credit-card-lending-survey", max_rows=8000)
+            co = quarterly(recs, "during_chargeoff_amt", "x")
+            avg = quarterly(recs, "during_avg_total_receivables", "x")
+            ratio = (co / avg * 400).dropna()  # quarterly charge-offs, annualised, % of receivables
+            ratio = ratio[ratio.index >= pd.Timestamp("2002-01-01")]  # survey coverage break at Q4 2001
+            ratio.name = "card_chargeoff"
+            if len(ratio) and ratio.tail(8).between(0, 20).all():
+                res["card_chargeoff"] = ratio
+        except Exception as exc:
+            problems.append(f"credit-card-lending-survey: {exc.__class__.__name__}: {exc}")
+        if problems:
+            errors.extend(problems)
+        if "card_chargeoff" in res and "card_chargeoff" in out:  # cross-check against HKMA's own ratio
+            both = pd.concat([res["card_chargeoff"], out["card_chargeoff"]], axis=1).dropna()
+            if len(both):
+                notes.append(f"card_chargeoff check: computed {both.iloc[-1, 0]:.2f} vs published "
+                             f"{both.iloc[-1, 1]:.2f} for {both.index[-1]:%Y-%m}")
+        return res
+
     def mortgage_survey():
         df = to_frame(get_records("monthly-statistical-bulletin/banking/residential-mortgage-survey",
                                   {"segment": "new"}))
@@ -269,6 +336,8 @@ def fetch_hkma() -> tuple[dict[str, pd.Series], str]:
         raise LookupError("; ".join(problems))
 
     step("HKMA banking statistics", banking)
+
+    step("HKMA monthly statistical bulletin, banking tables (full history)", long_history)
     step("HKMA residential mortgage survey", mortgage_survey)
     step("HKMA HIBOR fixings", hibor)
     step("HKMA base rate", base_rate)
