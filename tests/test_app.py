@@ -69,3 +69,19 @@ def test_fetch_all_isolates_failures(monkeypatch):
     series, errors, report = sources.fetch_all()
     assert set(series) == {"base_rate", "unemployment"}
     assert "RVD property price index (via DATA.GOV.HK)" in errors and "site down" in report
+
+
+def test_static_build_writes_one_page(tmp_path, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path / "snap")
+    spec = importlib.util.spec_from_file_location(
+        "build_static", Path(__file__).resolve().parent.parent / "scripts" / "build_static.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "OUT", tmp_path / "site")
+    monkeypatch.setattr(mod, "build", data_mod.build)
+    mod.main()
+    html = (tmp_path / "site" / "index.html").read_text()
+    assert "Hong Kong: macro drivers of credit risk" in html and "Credit risk scorecard" in html
+    assert html.count('class="card" id="c-') == sum(len(sec.cards) for sec in __import__("src.page", fromlist=["x"]).sections({}))

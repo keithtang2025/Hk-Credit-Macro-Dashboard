@@ -81,11 +81,13 @@ src/market.py                Hang Seng Index dividend yield and P/E (performance
 src/periods.py               Parser for the period formats Hong Kong agencies use
 src/xlsx_scan.py             Label-based series finder for spreadsheets
 src/sources.py               Runs every source with independent failure handling
+src/page.py                  Dashboard content (KPIs, chart sections) shared by the app and the static build
 src/specs.py                 Series definitions and scorecard rules
 src/data.py                  Loads the committed snapshot (1-hour cache)
 src/scorecard.py             Risk signal logic
 src/history.py               Point-in-time archive and as_of / revisions helpers
 src/charts.py                Plotly figures
+scripts/build_static.py      Builds the static GitHub Pages edition (site/index.html)
 scripts/refresh_snapshot.py  Daily refresh entry point (run by GitHub Actions)
 data/snapshot/               Latest copy of every series
 data/history/                Append-only archive of values, revisions and runs
@@ -101,6 +103,12 @@ render.yaml                  Render blueprint
 2. **Allow the refresh to commit.** In GitHub, go to **Settings > Actions > General > Workflow permissions**, choose **Read and write permissions**, and save.
 3. **Run the first refresh.** Go to **Actions > Refresh data snapshot > Run workflow**. The dashboard is empty until this has run once. When it finishes, check the log's last lines (for example `20 of 20 series refreshed`) and open `data/debug/source_report.md`.
 4. **Deploy.** In Render, choose **New > Blueprint** and select the repo. Render reads `render.yaml` and starts the app with `gunicorn app:server`. Each daily data commit redeploys it. The free plan sleeps when idle, so the first visit after a quiet spell takes 30 to 60 seconds.
+
+## Static edition (GitHub Pages)
+
+A server-free copy of the dashboard is published to GitHub Pages after every daily refresh, so it never sleeps the way Render's free plan does. `scripts/build_static.py` renders the same KPIs, scorecard and charts (from `src/page.py`, shared with the Dash app) into a single `site/index.html`, and `.github/workflows/pages.yml` deploys it.
+
+One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**. The page then lives at `https://<your-user>.github.io/<repo-name>/`. To build it locally: `python scripts/build_static.py` and open `site/index.html`.
 
 ## Run locally
 
