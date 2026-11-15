@@ -40,6 +40,7 @@ bankruptcy_petitions: Statistics on Compulsory Winding-up and Bankruptcy (Englis
 
 ## Hang Seng Indexes (dividend yield, P/E)
 page model: 0 data-looking links: 
+factsheet text near 'yield' / 'P/E':  +1.93 -6.53 *Annualised INDEX FUNDAMENTALS Annual Volatility*(%)Index Dividend Yield (%) PE Ratio (Times) 1 - Yr 3 - Yr 5 - Yr HSI 3.14 13.04 18.29 23.03 24.78 *Annual Volatility was calculated based on d
 note: page model: LookupError: no HSI figures via page model; tried 
 note: performance feed: HTTPError: 404 Client Error: Not Found for url: https://www.hsi.com.hk/data/eng/rt/index-series/hsi/performance.do
-hsi_dividend_yield: HSI factsheet PDF; as of 2026-10-30 = 1.00%, P/E not found
+hsi_dividend_yield: HSI factsheet PDF; as of 2026-10-30 = 3.00%, P/E not found
