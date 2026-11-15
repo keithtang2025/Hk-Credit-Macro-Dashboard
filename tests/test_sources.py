@@ -393,3 +393,70 @@ def test_usdhkd_falls_back_to_ecb_cross_rate(monkeypatch):
     s = out["usdhkd"]
     assert s.iloc[-1] == pytest.approx(7.8012, abs=1e-4) and s.index[-1] == pd.Timestamp("2026-10-31")
     assert "ECB reference rates" in report
+
+
+# ---------------------------------------------------------------- yields
+
+def _yield_rows():
+    rows = [["PRIVATE  DOMESTIC  -  PROPERTY  MARKET  YIELDS  (%)"],
+            ["Month", "Class A", "Class A - Remarks", "Class B", "Class B - Remarks", "Class C", "Class C - Remarks",
+             "Class D", "Class D - Remarks", "Class E", "Class E - Remarks"]]
+    for i, p in enumerate(pd.period_range("2024-01", "2026-09", freq="M")):
+        rows.append([p.strftime("%m-%Y"), 3.8, None, 3.4, None, 3.0, None, 2.6, None, 2.2 + i / 100,
+                     "(p)" if i > 30 else None])
+    return rows
+
+
+def test_rvd_yields_average_of_classes(monkeypatch):
+    monkeypatch.setattr(govhk, "resources", lambda pkg: [
+        {"name": "Private Domestic - Property Market Yields - Monthly (from 1999)", "format": "CSV", "url": "u"}])
+    monkeypatch.setattr(govhk, "load_rows", lambda url, fmt: _yield_rows())
+    report = []
+    got = govhk.fetch_rvd_yields(report)
+    ry, a = got["rental_yield"], got["rental_yield_class_a"]
+    assert ry.index[-1] == pd.Timestamp("2026-09-30")
+    assert ry.iloc[-1] == pytest.approx((3.8 + 3.4 + 3.0 + 2.6 + 2.2 + 0.32) / 5)
+    assert a.iloc[-1] == 3.8 and "average of classes A, B, C, D, E" in report[0]
+
+
+def test_class_pattern_skips_remarks_and_groups():
+    import re
+    pat = re.compile(govhk._class_pattern("a"), re.I)
+    assert pat.search("Class A") and pat.search("Class A (Up to 39.9 m2)")
+    assert not pat.search("Class A - Remarks") and not pat.search("Classes A, B & C")
+
+
+def test_hsi_performance_feed():
+    from src import market
+    body = {"requestDate": "2026-11-13T16:10:00", "indexSeriesList": [{"indexList": [
+        {"indexCode": "HSCE", "indexName": "Hang Seng China Enterprises Index", "dividendYield": "3.10"},
+        {"indexCode": "HSI", "indexName": "Hang Seng Index", "last": "25,120.5", "peRatio": "11.42",
+         "dividendYield": "3.56"}]}]}
+    dy, pe, when, how = market.parse_performance(body)
+    assert (dy, pe) == (3.56, 11.42) and when == pd.Timestamp("2026-11-13")
+
+
+def test_hsi_factsheet_text():
+    from src import market
+    dy, pe, when = market.parse_factsheet_text("Index data as at 31 Oct 2026  P/E Ratio (times) 11.8  "
+                                               "Dividend Yield (%) 3.62")
+    assert (dy, pe, when) == (3.62, 11.8, pd.Timestamp("2026-10-31"))
+
+
+def test_hsi_snapshot_builds_month_by_month(tmp_path, monkeypatch):
+    from src import data as data_mod
+    monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
+    for day, v in (("2026-10-31", 3.4), ("2026-11-30", 3.5), ("2026-11-30", 3.6), ("2026-12-31", 3.7)):
+        data_mod.save_snapshot({"hsi_dividend_yield": pd.Series([v], index=[pd.Timestamp(day)])})
+    s = data_mod.load_snapshot("hsi_dividend_yield")
+    assert list(s.values) == [3.4, 3.6, 3.7]
+
+
+def test_rental_yield_spread_is_derived(tmp_path, monkeypatch):
+    from src import data as data_mod
+    monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
+    idx = pd.date_range("2026-01-31", periods=6, freq="ME")
+    data_mod.save_snapshot({"rental_yield": pd.Series(3.0, index=idx), "hibor_1m": pd.Series(3.5, index=idx)})
+    d = data_mod.build()
+    assert d.series["rental_yield_spread"].iloc[-1] == pytest.approx(-0.5)
+    assert d.origin["rental_yield_spread"] == "derived"

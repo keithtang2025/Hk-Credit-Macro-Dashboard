@@ -3,7 +3,7 @@
 [![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 [![Daily data refresh](../../actions/workflows/refresh-data.yml/badge.svg)](../../actions/workflows/refresh-data.yml)
 
-A self-updating dashboard of the macroeconomic drivers of credit risk in Hong Kong. Every day it pulls official data from the Hong Kong Monetary Authority (HKMA), the Census and Statistics Department (C&SD), the Rating and Valuation Department (RVD) and the Official Receiver's Office (ORO), keeps a point-in-time archive of every value and revision, and scores each driver on whether it is moving toward higher or lower credit risk.
+A self-updating dashboard of the macroeconomic drivers of credit risk in Hong Kong. Every day it pulls official data from the Hong Kong Monetary Authority (HKMA), the Census and Statistics Department (C&SD), the Rating and Valuation Department (RVD), the Official Receiver's Office (ORO) and Hang Seng Indexes, keeps a point-in-time archive of every value and revision, and scores each driver on whether it is moving toward higher or lower credit risk.
 
 The Hong Kong sister project of the [Australia Credit Risk Macro Dashboard](https://github.com/keithtang2025/au-credit-macro-dashboard).
 
@@ -17,6 +17,8 @@ The Hong Kong sister project of the [Australia Credit Risk Macro Dashboard](http
 | Property and mortgages | Private domestic price index (all classes) and its year-on-year change | RVD via DATA.GOV.HK | Monthly |
 | | Mortgage delinquency ratio (overdue 3 months or more) | HKMA API | Monthly |
 | | Mortgages in negative equity, and their delinquency ratio | HKMA quarterly survey | Quarterly, manual |
+| Yields and valuation | Residential rental yield (average of classes A to E, and Class A) and its gap to 1-month HIBOR | RVD via DATA.GOV.HK; HKMA | Monthly |
+| | Hang Seng Index dividend yield and P/E ratio | Hang Seng Indexes | Daily reading, kept as month end |
 | Banking asset quality | Classified loan ratio of retail banks | HKMA API | Quarterly |
 | | Credit card charge-off ratio | HKMA API | Quarterly |
 | | Loan growth; loan-to-deposit ratio | HKMA API | Monthly |
@@ -72,9 +74,10 @@ revisions("gdp_yoy")                  # every revision: old value, new value, da
 ## Project layout
 
 ```
-app.py                       Dash app: KPI cards, scorecard, charts in four sections, data status panel
+app.py                       Dash app: KPI cards, scorecard, charts in five sections, data status panel
 src/hkma.py                  HKMA open API client and series builders
 src/govhk.py                 DATA.GOV.HK catalogue lookup and table readers for C&SD, RVD and ORO
+src/market.py                Hang Seng Index dividend yield and P/E (performance feed, factsheet fallback)
 src/periods.py               Parser for the period formats Hong Kong agencies use
 src/xlsx_scan.py             Label-based series finder for spreadsheets
 src/sources.py               Runs every source with independent failure handling
@@ -86,7 +89,7 @@ src/charts.py                Plotly figures
 scripts/refresh_snapshot.py  Daily refresh entry point (run by GitHub Actions)
 data/snapshot/               Latest copy of every series
 data/history/                Append-only archive of values, revisions and runs
-data/manual/                 Negative equity (quarterly, by hand)
+data/manual/                 Negative equity (quarterly, by hand); optional HSI yield history
 data/debug/source_report.md  What the last refresh found, and where
 tests/                       Unit tests (period parser, HKMA client, table readers, scorecard, app)
 render.yaml                  Render blueprint
@@ -122,10 +125,12 @@ pip install pytest && pytest -q      # tests
 - The scorecard is a directional monitor, not a forecasting model: each signal compares two points in time and signals are not weighted.
 - HKMA asset-quality ratios (classified loans, card charge-offs) are quarterly and published with a lag.
 - Unemployment is a three-month moving average, dated by the last month of the period.
+- Hang Seng Indexes publishes only the latest dividend yield and P/E, so that history starts on the first refresh and grows by one point a month. Earlier months can be added to `data/manual/hsi_valuation.csv` (columns `date,dividend_yield,pe_ratio,source`).
+- RVD publishes rental yields by flat size class only, so the "all classes" figure is a simple average of classes A to E, not a weighted one.
 - Negative equity figures are entered by hand and are only as current as the last edit.
 
 ## Data sources
 
-Hong Kong Monetary Authority open API; Census and Statistics Department, Rating and Valuation Department and Official Receiver's Office datasets on DATA.GOV.HK. Data remain subject to each provider's terms of use.
+Hong Kong Monetary Authority open API; Census and Statistics Department, Rating and Valuation Department and Official Receiver's Office datasets on DATA.GOV.HK; Hang Seng Indexes Company (index dividend yield and P/E). Data remain subject to each provider's terms of use.
 
 Built by Keith Tang, CFA. For research and education; not investment advice.

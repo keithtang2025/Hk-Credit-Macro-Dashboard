@@ -19,6 +19,7 @@ details { margin-top: 16px; }
 .badge.snapshot { color: #b45309; font-weight: 600; }
 .badge.daily { color: #2563eb; font-weight: 600; }
 .badge.missing { color: #dc2626; font-weight: 600; }
+.badge.derived { color: #7c3aed; font-weight: 600; }
 footer { margin-top: 20px; }
 @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } h1 { font-size: 24px; } }
 .section-title { font-size: 20px; font-weight: 600; margin: 24px 0 12px; }

@@ -423,6 +423,63 @@ def fetch_rvd(report: list[str]) -> dict[str, pd.Series]:
     raise LookupError(f"RVD: {last_exc}\n" + describe({"table": rows[:200]}, r"class|index|all|month|year"))
 
 
+YIELD_CLASSES = "ABCDE"
+
+
+def _class_pattern(c: str) -> str:
+    return rf"^\s*class\s*{c}\b(?!\s*[,&])(?!.*remark)"
+
+
+def fetch_rvd_yields(report: list[str]) -> dict[str, pd.Series]:
+    """RVD private domestic rental yields, % (annual rent / price), monthly by class.
+
+    RVD publishes yields by flat size class (A smallest to E largest) without an
+    all-class figure, so the dashboard shows the simple average of the classes and Class A."""
+    res = resources(RVD_PACKAGE)
+    chosen = (pick(res, r"Private Domestic - Property Market Yields - Monthly")
+              or pick(res, r"Property Market Yields.*Monthly")
+              or pick(res, r"Property Market Yields"))
+    if not chosen:
+        raise LookupError("RVD: property market yields file not found among "
+                          + "; ".join(r.get("name", "") for r in res[:40]))
+    r = chosen[0]
+    rows = load_rows(r["url"], r.get("format", "CSV"))
+    valid = (0.3, 15.0)
+    classes: dict[str, pd.Series] = {}
+    for c in YIELD_CLASSES:
+        try:
+            classes[c] = series_from_rows(rows, _class_pattern(c.lower()), valid=valid).series
+        except LookupError:
+            pass
+    overall = None
+    try:
+        overall = series_from_rows(rows, r"all classes|^\s*overall|average", valid=valid).series
+    except LookupError:
+        pass
+    if not classes and overall is None:
+        raise LookupError(f"RVD yields: no class columns in {r.get('name')}\n"
+                          + describe({"table": rows[:200]}, r"class|yield|month|year|%"))
+    if overall is None:
+        frame = pd.concat(classes, axis=1).dropna(how="all")
+        overall = frame.mean(axis=1)
+        how = f"average of classes {', '.join(classes)}"
+    else:
+        how = "all-classes column"
+    out = {}
+    overall = overall.dropna()
+    overall.name = "rental_yield"
+    out["rental_yield"] = overall
+    if "A" in classes:
+        a = classes["A"].dropna()
+        a.name = "rental_yield_class_a"
+        out["rental_yield_class_a"] = a
+    report.append(f"rental_yield: {r.get('name')} -> {how}; {len(overall)} obs, "
+                  f"latest {overall.index[-1]:%Y-%m} = {overall.iloc[-1]:.2f}%")
+    for c, s in classes.items():
+        report.append(f"  class {c}: latest {s.index[-1]:%Y-%m} = {s.iloc[-1]:.2f}%")
+    return out
+
+
 ORO_PACKAGE = "hk-oro-oro-statistics"
 
 

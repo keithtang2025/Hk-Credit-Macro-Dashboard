@@ -28,6 +28,12 @@ SERIES: dict[str, SeriesInfo] = {
     # property
     "home_price_index": SeriesInfo("Private domestic price index (all classes)", "RVD", "index"),
     "home_price_yoy": SeriesInfo("Home prices, year-on-year change", "RVD"),
+    "rental_yield": SeriesInfo("Residential rental yield (average of classes A to E)", "RVD"),
+    "rental_yield_class_a": SeriesInfo("Residential rental yield, Class A (under 40 m2)", "RVD"),
+    "rental_yield_spread": SeriesInfo("Rental yield less 1-month HIBOR", "RVD / HKMA", "pp"),
+    # equity market
+    "hsi_dividend_yield": SeriesInfo("Hang Seng Index dividend yield", "Hang Seng Indexes"),
+    "hsi_pe": SeriesInfo("Hang Seng Index P/E ratio", "Hang Seng Indexes", "times"),
     # economy
     "unemployment": SeriesInfo("Unemployment rate (seasonally adjusted)", "C&SD"),
     "cpi_yoy": SeriesInfo("Composite CPI, year-on-year", "C&SD"),
@@ -58,6 +64,8 @@ SCORE_ITEMS: list[ScoreItem] = [
     ScoreItem("gdp_yoy", "Real GDP growth (y/y)", False),
     ScoreItem("cpi_yoy", "Composite CPI (y/y)", True),
     ScoreItem("home_price_yoy", "Home prices (y/y, RVD)", False),
+    ScoreItem("rental_yield_spread", "Rental yield less 1M HIBOR (pp)", False,
+              "Carry on a home: a thinner or negative gap means rent covers less of a HIBOR mortgage"),
     ScoreItem("mortgage_delinquency", "Mortgage delinquency ratio", True),
     ScoreItem("classified_loans", "Classified loan ratio", True),
     ScoreItem("card_chargeoff", "Credit card charge-off ratio", True),
@@ -65,4 +73,5 @@ SCORE_ITEMS: list[ScoreItem] = [
     ScoreItem("bankruptcy_petitions_12m", "Bankruptcy petitions, 12 months", True),
 ]
 
-AUTOMATED_KEYS = set(SERIES)
+DERIVED = {"rental_yield_spread"}
+AUTOMATED_KEYS = set(SERIES) - DERIVED

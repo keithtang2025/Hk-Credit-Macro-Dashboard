@@ -94,8 +94,8 @@ def serve_layout():
     return html.Div(className="page", children=[
         html.Header(children=[
             html.H1("Hong Kong: macro drivers of credit risk"),
-            html.P(f"{refreshed}{n_have} of {len(SERIES)} series loaded from HKMA, C&SD, RVD and the Official "
-                   f"Receiver's Office, refreshed daily. Negative equity figures are updated quarterly by hand.",
+            html.P(f"{refreshed}{n_have} of {len(SERIES)} series loaded from HKMA, C&SD, RVD, the Official "
+                   f"Receiver's Office and Hang Seng Indexes, refreshed daily. Negative equity figures are updated quarterly by hand.",
                    className="muted small"),
             html.P(className="takeaway", children=[
                 "Of the indicators with a comparison point, ", html.B(str(n_up)), " of ", html.B(str(n_cmp)),
@@ -107,6 +107,8 @@ def serve_layout():
             kpi("1-month HIBOR", s.get("hibor_1m"), "{:.2f}%", "HKAB fixing, month end"),
             kpi("Unemployment", s.get("unemployment"), "{:.1f}%", "Seasonally adjusted"),
             kpi("Home prices", s.get("home_price_yoy"), "{:+.1f}%", "Year on year, RVD"),
+            kpi("Rental yield", s.get("rental_yield"), "{:.2f}%", "Average of classes A to E, RVD"),
+            kpi("HSI dividend yield", s.get("hsi_dividend_yield"), "{:.2f}%", "Hang Seng Index"),
             kpi("Mortgage delinquency", s.get("mortgage_delinquency"), "{:.2f}%", "Overdue 3 months or more"),
         ]),
         html.Section(className="card", id="scorecard", children=[
@@ -132,6 +134,23 @@ def serve_layout():
                  charts.lines([(s.get("home_price_index"), "All classes")], years=15, fmt="{:.1f}", ysuffix=""), "c-hpi-level"),
             card("Mortgage delinquency", "Residential mortgages overdue more than 3 months, % of outstanding. HKMA survey.",
                  charts.lines([(s.get("mortgage_delinquency"), "Delinquency ratio")], years=10), "c-mdr"),
+        ]),
+        section("Yields and valuation", "yields", [
+            card("Rental yield and funding cost", "RVD private domestic rental yields (annual rent as % of price), "
+                 "average of classes A to E and Class A (small flats), against 1-month HIBOR, which prices most new mortgages.",
+                 charts.lines([(s.get("rental_yield"), "Rental yield, all classes avg"),
+                               (s.get("rental_yield_class_a"), "Rental yield, Class A"),
+                               (s.get("hibor_1m"), "1M HIBOR")], years=10, label_last=False), "c-ryield"),
+            card("Rental yield gap", "Rental yield less 1-month HIBOR, percentage points. Red bars mean rent earns "
+                 "less than the HIBOR funding cost, which leaves investors and buyers more exposed.",
+                 charts.bars(s.get("rental_yield_spread"), years=4, fmt="{:+.1f}", ysuffix=" pp"), "c-rgap"),
+            card("Stock, property and cash yields", "Hang Seng Index dividend yield vs residential rental yield and "
+                 "3-month HIBOR, %. HSI history builds month by month from the first daily reading.",
+                 charts.lines([(s.get("hsi_dividend_yield"), "HSI dividend yield"),
+                               (s.get("rental_yield"), "Rental yield"), (s.get("hibor_3m"), "3M HIBOR")],
+                              years=10, label_last=False), "c-yields"),
+            card("Hang Seng Index P/E", "Price-to-earnings ratio of the Hang Seng Index, times. Hang Seng Indexes.",
+                 charts.lines([(s.get("hsi_pe"), "P/E")], years=10, fmt="{:.1f}x", ysuffix="x"), "c-pe"),
         ]),
         section("Banking asset quality", "banks", [
             card("Classified loans", "Classified loan ratio of retail banks, % of total loans. Quarterly.",
@@ -160,11 +179,13 @@ def serve_layout():
             html.Summary("Data sources and status"),
             status_table(d),
             html.P("All series are refreshed each morning by a GitHub Action and committed as a snapshot. Manual "
-                   "series (data/manual): HKMA quarterly survey of residential mortgages in negative equity.",
+                   "series (data/manual): HKMA quarterly survey of residential mortgages in negative equity. Hang Seng "
+                   "Indexes publishes only the latest dividend yield and P/E, so each run records that day's reading and "
+                   "older months can be added to data/manual/hsi_valuation.csv.",
                    className="muted small"),
         ]),
         html.Footer("Built with Plotly Dash. Data: Hong Kong Monetary Authority, Census and Statistics Department, "
-                    "Rating and Valuation Department, Official Receiver's Office (via DATA.GOV.HK); USD/HKD from HKMA, the Federal Reserve "
+                    "Rating and Valuation Department, Official Receiver's Office (via DATA.GOV.HK); Hang Seng Indexes; USD/HKD from HKMA, the Federal Reserve "
                     "H.10 release via FRED, or ECB reference rates. Not investment advice.",
                     className="muted small"),
     ])

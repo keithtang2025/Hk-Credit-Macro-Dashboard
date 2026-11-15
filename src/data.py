@@ -14,7 +14,8 @@ from .specs import SERIES
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT_DIR = ROOT / "data" / "snapshot"
 MANUAL_DIR = ROOT / "data" / "manual"
-ACCUMULATE = {"loan_growth", "loan_growth_hk", "loan_to_deposit", "classified_loans", "card_chargeoff"}
+ACCUMULATE = {"loan_growth", "loan_growth_hk", "loan_to_deposit", "classified_loans", "card_chargeoff",
+              "hsi_dividend_yield", "hsi_pe"}  # HSI: latest reading only, so history builds day by day
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
 
 
@@ -69,6 +70,13 @@ def build() -> DashboardData:
         if s is not None and not s.empty:
             d.series[key] = s
             d.origin[key] = "daily"
+    ry, hb = d.series.get("rental_yield"), d.series.get("hibor_1m")
+    if ry is not None and hb is not None:
+        spread = (ry - hb.reindex(ry.index)).dropna()
+        if len(spread):
+            spread.name = "rental_yield_spread"
+            d.series["rental_yield_spread"] = spread
+            d.origin["rental_yield_spread"] = "derived"
     d.stress = pd.read_csv(MANUAL_DIR / "stress_indicators.csv")
     d.loaded_at = pd.Timestamp.now(tz="Asia/Hong_Kong")
     d.refreshed_at = _last_refresh()
