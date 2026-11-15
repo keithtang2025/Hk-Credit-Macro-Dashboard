@@ -344,3 +344,29 @@ def test_usdhkd_falls_back_to_forward_rate_spot_column(monkeypatch):
     out, report = hkma.fetch_hkma()
     assert out["usdhkd"].iloc[-1] == pytest.approx(7.83) and len(out["usdhkd"]) == 22
     assert "hkd-fer-endperiod" in report
+
+
+def test_usdhkd_falls_back_to_fred(monkeypatch):
+    import requests
+
+    def fake_records(path, params=None, max_rows=5000, timeout=60.0):
+        if "er-ir" in path or "monetary-statistics" in path:
+            raise requests.HTTPError("405 Client Error: Not Allowed")
+        raise requests.HTTPError("405")
+
+    days = pd.bdate_range("2025-01-01", "2026-11-13")
+    csv = "observation_date,DEXHKUS\n" + "\n".join(
+        f"{d:%Y-%m-%d},{'.' if i % 50 == 0 else round(7.80 + (i % 5) / 1000, 4)}" for i, d in enumerate(days))
+
+    def fake_get(url, params=None, **kw):
+        assert "fred" in url and params == {"id": "DEXHKUS"}
+        r = FakeResp()
+        r.text = csv
+        return r
+
+    monkeypatch.setattr(hkma, "get_records", fake_records)
+    monkeypatch.setattr(hkma.requests, "get", fake_get)
+    out, report = hkma.fetch_hkma()
+    s = out["usdhkd"]
+    assert s.index[-1] == pd.Timestamp("2026-11-30") and 7.75 <= s.iloc[-1] <= 7.85
+    assert len(s) == 23 and "FRED DEXHKUS" in report

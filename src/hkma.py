@@ -112,6 +112,23 @@ def month_end_last(daily: pd.Series, key: str) -> pd.Series:
     return s
 
 
+FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+
+
+def fred_series(series_id: str, timeout: float = 60.0) -> pd.Series:
+    """A FRED series as a daily pd.Series (no API key needed for the CSV download)."""
+    import io
+
+    r = requests.get(FRED_CSV, params={"id": series_id}, timeout=timeout, headers={"User-Agent": USER_AGENT})
+    r.raise_for_status()
+    df = pd.read_csv(io.StringIO(r.text))
+    if df.shape[1] < 2:
+        raise ValueError(f"FRED {series_id}: unexpected CSV columns {list(df.columns)}")
+    s = pd.Series(pd.to_numeric(df.iloc[:, 1], errors="coerce").values,
+                  index=pd.to_datetime(df.iloc[:, 0], errors="coerce")).dropna()
+    return s[s.index.notna()].sort_index()
+
+
 # ---------------------------------------------------------------- series builders
 
 def fetch_hkma() -> tuple[dict[str, pd.Series], str]:
@@ -190,7 +207,19 @@ def fetch_hkma() -> tuple[dict[str, pd.Series], str]:
                     return {"usdhkd": s}
                 problems.append(f"{path}: no values in range")
             except Exception as exc:
-                problems.append(f"{path}: {exc.__class__.__name__}: {exc}")
+                problems.append(f"{path}: {exc.__class__.__name__}: {str(exc)[:120]}")
+        # HKMA's exchange-rate endpoints refuse GitHub's servers (HTTP 405), so fall back to the
+        # Federal Reserve H.10 noon buying rate in New York, HKD per USD, via FRED.
+        try:
+            s = month_end_last(fred_series("DEXHKUS"), "usdhkd")
+            s = s[(s > 7.0) & (s < 8.5)]
+            if len(s):
+                notes.append("usdhkd source: FRED DEXHKUS (Federal Reserve H.10), month-end; HKMA endpoints refused: "
+                             + "; ".join(p.split(":")[0] for p in problems))
+                return {"usdhkd": s}
+            problems.append("FRED DEXHKUS: no values in range")
+        except Exception as exc:
+            problems.append(f"FRED DEXHKUS: {exc.__class__.__name__}: {exc}")
         raise LookupError("; ".join(problems))
 
     step("HKMA banking statistics", banking)

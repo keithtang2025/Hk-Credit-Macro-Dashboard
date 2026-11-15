@@ -122,7 +122,7 @@ def serve_layout():
                                (s.get("hibor_3m"), "3M HIBOR")], label_last=False), "c-rates"),
             card("Aggregate balance", "Banks' clearing balances at the HKMA, month end, HK$ billion. Falls when the peg is defended.",
                  charts.lines([(s.get("aggregate_balance"), "Aggregate balance")], fmt="{:,.0f}", ysuffix=""), "c-agg"),
-            card("USD/HKD and the peg", "HKD per USD, month end, within the 7.75 to 7.85 Convertibility Undertaking band.",
+            card("USD/HKD and the peg", "HKD per USD, month end, within the 7.75 to 7.85 Convertibility Undertaking band. Federal Reserve H.10 rate via FRED where HKMA's feed is unavailable.",
                  charts.peg(s.get("usdhkd")), "c-peg"),
         ]),
         section("Property and mortgages", "property", [
@@ -164,7 +164,8 @@ def serve_layout():
                    className="muted small"),
         ]),
         html.Footer("Built with Plotly Dash. Data: Hong Kong Monetary Authority, Census and Statistics Department, "
-                    "Rating and Valuation Department, Official Receiver's Office (via DATA.GOV.HK). Not investment advice.",
+                    "Rating and Valuation Department, Official Receiver's Office (via DATA.GOV.HK); USD/HKD from the Federal Reserve "
+                    "H.10 release via FRED. Not investment advice.",
                     className="muted small"),
     ])
 
