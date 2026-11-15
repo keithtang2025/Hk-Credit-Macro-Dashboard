@@ -185,7 +185,13 @@ def series_from_rows(rows: list[list], label_pattern: str, default_year: int | N
     if len(periods) >= min_points:
         first = min(periods)
         width = max((len(x) for x in rows), default=0)
-        headers = rows[max(0, first - 6):first]
+
+        def texty(row) -> bool:
+            cells = [v for v in row if v not in (None, "")]
+            return bool(cells) and sum(isinstance(v, str) and _num(v) is None for v in cells) >= 0.5 * len(cells)
+
+        header_idx = [i for i in range(first) if texty(rows[i])][-3:]
+        headers = [rows[i] for i in header_idx] or rows[max(0, first - 6):first]
         labels = []
         for c in range(width):
             parts = []
@@ -322,19 +328,16 @@ CSD_SPECS = [
     TableSpec("unemployment", ("hk-censtatd-tablechart-210-06101",), r"\[English\]",
               (r"(?=.*unemployment rate)(?=.*seasonally adjusted)(?!.*(not|non)[- ]seasonally)",
                r"(?=.*unemployment rate)(?!.*under)"), (0.5, 15),
-              csd=CsdRule(freqs=("M3M", "M"), desc=r"%", sv_include=r"^U|UNEMP",
-                          sv_exclude=r"UND|UDR|UEMP_?N|LFPR|^LF", prefer=r"SA|season")),
+              csd=CsdRule(freqs=("M3M", "M"), desc=r"%", sv_include=r"^(SAUR|UR)$", prefer=r"^SAUR")),
     TableSpec("cpi_yoy", ("hk-censtatd-tablechart-510-60001",), r"\[English\]",
               (r"(?=.*composite)(?=.*(year-on-year|% change|change over|yoy))",
                r"(?=.*(year-on-year|% change|change over))(?!.*(cpi\s*\(a\)|cpi\s*\(b\)|cpi\s*\(c\)))"), (-10, 20),
-              csd=CsdRule(freqs=("M",), desc=r"year-on-year|% change", dim_include=r"composite",
-                          sv_exclude=r"\(A\)|\(B\)|\(C\)|^A$|^B$|^C$", prefer=r"COMP|CCPI|composite")),
+              csd=CsdRule(freqs=("M",), desc=r"year-on-year", sv_include=r"^CC_", prefer=r"^CC_")),
     TableSpec("gdp_yoy", ("hk-censtatd-tablechart-310-31001", "hk-censtatd-tablechart-310-31003",
                           "hk-censtatd-tablechart-310-30001"), r"\[English\]",
               (r"(?=.*(gdp|gross domestic product))(?=.*(real|chained))(?=.*(change|year-on-year))",
                r"(?=.*(real terms|chained))(?=.*change)"), (-15, 20),
-              csd=CsdRule(freqs=("Q",), desc=r"year-on-year", sv_exclude=r"CUR|DEF|IPD|PC|PER|CAP|PRICE",
-                          prefer=r"CH|CON|REAL|CVM|GDP")),
+              csd=CsdRule(freqs=("Q",), desc=r"year-on-year", sv_include=r"^CON$")),
 ]
 
 

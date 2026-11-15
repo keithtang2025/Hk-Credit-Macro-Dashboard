@@ -5,6 +5,8 @@ newest first, at most 1,000 rows per call (paged with offset).
 """
 from __future__ import annotations
 
+import re
+
 import pandas as pd
 import requests
 
@@ -167,13 +169,18 @@ def fetch_hkma() -> tuple[dict[str, pd.Series], str]:
     def usdhkd():
         """HKD per USD. The end-of-period endpoint has refused requests, so try alternatives."""
         tries = [("monthly-statistical-bulletin/er-ir/er-eeri-endperiod", "usd", False),
+                 ("monthly-statistical-bulletin/er-ir/hkd-fer-endperiod", None, False),
+                 ("monthly-statistical-bulletin/er-ir/hkd-fer-daily", None, True),
                  ("monthly-statistical-bulletin/er-ir/er-eeri-daily", "usd", True),
-                 ("monthly-statistical-bulletin/er-ir/er-eeri-periodaverage", "usd", False),
                  ("monthly-statistical-bulletin/financial/monetary-statistics", "exrate_hkd_usd", False)]
         problems = []
         for path, name, daily in tries:
             try:
                 df = to_frame(get_records(path, max_rows=3000))
+                if name is None:  # forward-rate tables: use their spot-rate column
+                    name = next((c for c in df.columns if re.search(r"spot", c, re.I)), None)
+                    if name is None:
+                        raise KeyError(f"no spot column; fields: {', '.join(df.columns)}")
                 s = field(df, name, "usdhkd")
                 if daily:
                     s = month_end_last(s, "usdhkd")

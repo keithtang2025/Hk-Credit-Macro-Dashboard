@@ -245,10 +245,10 @@ def test_snapshot_accumulates_history(tmp_path, monkeypatch):
     monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
     old = pd.Series([1.0, 2.0], index=pd.to_datetime(["2025-01-31", "2025-02-28"]))
     new = pd.Series([2.5, 3.0], index=pd.to_datetime(["2025-02-28", "2025-03-31"]))
-    data_mod.save_snapshot({"x": old})
-    data_mod.save_snapshot({"x": new})
-    s = data_mod.load_snapshot("x")
-    assert list(s.values) == [1.0, 2.5, 3.0]
+    data_mod.save_snapshot({"classified_loans": old, "cpi_yoy": old})
+    data_mod.save_snapshot({"classified_loans": new, "cpi_yoy": new})
+    assert list(data_mod.load_snapshot("classified_loans").values) == [1.0, 2.5, 3.0]
+    assert list(data_mod.load_snapshot("cpi_yoy").values) == [2.5, 3.0]  # full-history source replaces
 
 
 # ---------------------------------------------------------------- layouts seen in the second live run
@@ -267,12 +267,12 @@ def test_csd_unemployment_records_with_sex_dimension():
                          "svDesc": "No. ('000)", "figure": "3800", "sd_value": None})
             recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "UR",
                          "svDesc": "%", "figure": str(3.9 + adj), "sd_value": None})
-            recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "UR_SA",
+            recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "SAUR",
                          "svDesc": "%", "figure": str(3.8 + adj), "sd_value": None})
             recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "UNDR",
                          "svDesc": "%", "figure": "1.4", "sd_value": None})
     s, how, listing = govhk.csd_select(_csd_rows(recs), govhk.CSD_SPECS[0].csd, (0.5, 15))
-    assert "sv=UR_SA" in how and s.iloc[-1] == pytest.approx(3.8)
+    assert "sv=SAUR" in how and s.iloc[-1] == pytest.approx(3.8)
     assert s.index[-1] == pd.Timestamp("2026-09-30") and "UNDR" in listing
 
 
@@ -282,28 +282,29 @@ def test_csd_gdp_records_pick_real_not_current():
         per = q.end_time.strftime("%Y%m")
         recs.append({"freq": "Q", "period": per, "sv": "CUR", "svDesc": "HK$ million", "figure": "800000", "sd_value": None})
         recs.append({"freq": "Q", "period": per, "sv": "CUR", "svDesc": "Year-on-year % change", "figure": "5.5", "sd_value": None})
-        recs.append({"freq": "Q", "period": per, "sv": "CHN", "svDesc": "Year-on-year % change", "figure": str(2.0 + i / 10), "sd_value": None})
-        recs.append({"freq": "Q", "period": per, "sv": "IPD", "svDesc": "Year-on-year % change", "figure": "1.1", "sd_value": None})
+        recs.append({"freq": "Q", "period": per, "sv": "CON", "svDesc": "Year-on-year % change", "figure": str(2.0 + i / 10), "sd_value": None})
+        recs.append({"freq": "Q", "period": per, "sv": "DEF", "svDesc": "Year-on-year % change", "figure": "1.1", "sd_value": None})
+        recs.append({"freq": "Q", "period": per, "sv": "SA1", "svDesc": "Quarter-to-quarter % change", "figure": "0.5", "sd_value": None})
     s, how, _ = govhk.csd_select(_csd_rows(recs), govhk.CSD_SPECS[2].csd, (-15, 20))
-    assert "sv=CHN" in how and s.index[-1] == pd.Timestamp("2026-09-30") and s.iloc[-1] == pytest.approx(3.0)
+    assert "sv=CON" in how and s.index[-1] == pd.Timestamp("2026-09-30") and s.iloc[-1] == pytest.approx(3.0)
 
 
 def test_csd_cpi_records_pick_composite():
     recs = []
     for p in pd.period_range("2025-01", "2026-09", freq="M"):
         per = p.strftime("%Y%m")
-        for code, desc, yoy in (("CCPI", "Composite CPI", 1.4), ("CPIA", "CPI(A)", 1.9), ("CPIB", "CPI(B)", 1.2)):
-            recs.append({"CPI_TYPE": code, "CPI_TYPEDesc": desc, "freq": "M", "period": per, "sv": "IDX",
-                         "svDesc": "Index", "figure": "105", "sd_value": None})
-            recs.append({"CPI_TYPE": code, "CPI_TYPEDesc": desc, "freq": "M", "period": per, "sv": "YOY",
-                         "svDesc": "Year-on-year % change", "figure": str(yoy), "sd_value": None})
+        for code, yoy in (("A_CM_1920", 1.4), ("B_CM_1920", 2.0), ("C_CM_1920", 2.3), ("CC_CM_1920", 1.9)):
+            recs.append({"freq": "M", "period": per, "sv": code, "svDesc": "Index", "figure": "110", "sd_value": None})
+            recs.append({"freq": "M", "period": per, "sv": code, "svDesc": "Month-to-month % change", "figure": "0.2", "sd_value": None})
+            recs.append({"freq": "M", "period": per, "sv": code, "svDesc": "Year-on-year % change", "figure": str(yoy), "sd_value": None})
     s, how, _ = govhk.csd_select(_csd_rows(recs), govhk.CSD_SPECS[1].csd, (-10, 20))
-    assert s.iloc[-1] == pytest.approx(1.4) and len(s) == 21
+    assert "sv=CC_CM_1920" in how and s.iloc[-1] == pytest.approx(1.9) and len(s) == 21
 
 
 def test_oro_combined_monthly_file():
     rows = [["Year", "Month", "Bankruptcy Petitions presented", "Receiving/Bankruptcy Orders made",
              "Compulsory Winding-up Petitions presented", "Winding-up Orders made by the Court", "Weekly court hearing"],
+            *[[y, "-", 300 + y % 100, 200, 400, 300, "-"] for y in range(1989, 1996)],
             [1996, "-", 780, 543, 742, 557, 48], [1997, "-", 829, 639, 658, 503, 49]]
     for y in (2025, 2026):
         for m in range(1, 13):
@@ -325,3 +326,21 @@ def test_snapshot_full_history_replaces_bad_values(tmp_path, monkeypatch):
     data_mod.save_snapshot({"x": pd.Series([9.0, -6.0, 9.0, 1.0], index=idx)})
     data_mod.save_snapshot({"x": pd.Series([1.1, 1.2, 1.3, 1.4], index=idx)})
     assert list(data_mod.load_snapshot("x").values) == [1.1, 1.2, 1.3, 1.4]
+
+
+def test_usdhkd_falls_back_to_forward_rate_spot_column(monkeypatch):
+    import requests
+
+    months = [str(p) for p in pd.period_range("2025-01", "2026-10", freq="M")][::-1]
+
+    def fake_records(path, params=None, max_rows=5000, timeout=60.0):
+        if "er-eeri" in path:
+            raise requests.HTTPError("405 Client Error: Not Allowed")
+        if path.endswith("hkd-fer-endperiod"):
+            return [{"end_of_month": m, "spot": 7.83, "fwd_1m": -10} for m in months]
+        raise requests.HTTPError("405")
+
+    monkeypatch.setattr(hkma, "get_records", fake_records)
+    out, report = hkma.fetch_hkma()
+    assert out["usdhkd"].iloc[-1] == pytest.approx(7.83) and len(out["usdhkd"]) == 22
+    assert "hkd-fer-endperiod" in report

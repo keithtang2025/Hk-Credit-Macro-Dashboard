@@ -14,6 +14,7 @@ from .specs import SERIES
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT_DIR = ROOT / "data" / "snapshot"
 MANUAL_DIR = ROOT / "data" / "manual"
+ACCUMULATE = {"loan_growth", "loan_growth_hk", "loan_to_deposit", "classified_loans", "card_chargeoff"}
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
 
 
@@ -42,9 +43,9 @@ def save_snapshot(series: dict[str, pd.Series]) -> list[Path]:
     for key, s in series.items():
         path = SNAPSHOT_DIR / f"{key}.csv"
         old = load_snapshot(key)
-        # Sources with a short window (e.g. HKMA's 20-period summary table) would lose history,
-        # so keep older points; a source that returns its full history replaces the file.
-        if old is not None and len(old) and len(s) and s.index[0] > old.index[0]:
+        # Only series from HKMA's short summary table (about 20 periods) keep older points;
+        # every other source returns its full history and replaces the file outright.
+        if key in ACCUMULATE and old is not None and len(old) and len(s) and s.index[0] > old.index[0]:
             s = pd.concat([old[old.index < s.index[0]], s]).sort_index()
         pd.DataFrame({"date": s.index.strftime("%Y-%m-%d"), "value": s.values}).to_csv(path, index=False)
         written.append(path)
