@@ -6,14 +6,19 @@ loan_growth: HKMA banking statistics; 2 obs, latest 2026-09 = 8.409
 loan_growth_hk: HKMA banking statistics; 2 obs, latest 2026-09 = 7.14
 classified_loans: HKMA banking statistics; 4 obs, latest 2026-06 = 1.96
 loan_to_deposit: HKMA banking statistics; 14 obs, latest 2026-09 = 52.14
+card_chargeoff check: computed 2.45 vs published 2.45 for 2026-06
+loan_growth: HKMA monthly statistical bulletin, banking tables (full history); 82 obs, latest 2026-09 = 8.409
+loan_growth_hk: HKMA monthly statistical bulletin, banking tables (full history); 82 obs, latest 2026-09 = 6.186
+classified_loans: HKMA monthly statistical bulletin, banking tables (full history); 44 obs, latest 2026-09 = 1.865
+card_chargeoff: HKMA monthly statistical bulletin, banking tables (full history); 98 obs, latest 2026-06 = 2.448
 mortgage_delinquency: HKMA residential mortgage survey; 118 obs, latest 2026-09 = 0.11
 hibor_1m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 2.709
 hibor_3m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 3.213
 base_rate: HKMA base rate; 413 obs, latest 2026-10 = 4.25
-aggregate_balance: HKMA daily interbank liquidity; 98 obs, latest 2026-11 = 54.05
-base_rate_daily: HKMA daily interbank liquidity; 98 obs, latest 2026-11 = 4.25
 usdhkd source: ECB reference rates, HKD/EUR divided by USD/EUR, month-end; earlier sources failed: monthly-statistical-bulletin/er-ir/er-eeri-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-daily; monthly-statistical-bulletin/er-ir/er-eeri-daily; monthly-statistical-bulletin/financial/monetary-statistics; FRED DEXHKUS
 usdhkd: HKMA exchange rates; 202 obs, latest 2026-10 = 7.846
+
+FAILED HKMA daily interbank liquidity: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/daily-monetary-statistics/daily-figures-interbank-liquidity?offset=0
 
 ## C&SD (via DATA.GOV.HK)
 unemployment: hk-censtatd-tablechart-210-06101 -> C&SD records freq=M3M sv=SAUR svDesc='(%)'; 435 obs, latest 2026-09 = 3.9
@@ -46,6 +51,6 @@ note: performance feed: HTTPError: 404 Client Error: Not Found for url: https://
 hsi_dividend_yield: HSI factsheet PDF; as of 2026-10-30 = 3.14%, P/E 13.04
 
 ## HKEX monthly bulletin (Main Board P/E, yield)
-hkex: 49 month(s) not found, newest 2026-10, oldest 2019-02
-hkex notes: 2026-10: https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_2610.json has no 'Average yield'; starts Stock market highlights /eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2610.json Trading summary for equity securities (excluding SPAC shares) /eng/stat/smstat/mthbull/rpt_data_trade_summary_equity_2610_[PAGE].json Trading summary for SPAC shares /eng/stat/smstat/mthbull/rpt_data_trade_summary_spac_shares_2610_[PAGE].json Trading summary for equity warrants (excluding SPAC warrants) /eng/sta | 2026-09: https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_2609.json has no 'Average yield'; starts Stock market highlights /eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2609.json Trading summary for equity securities (excluding SPAC shares) /eng/stat/smstat/mthbull/rpt_data_trade_summary_equity_2609_[PAGE].json Trading summary for SPAC shares /eng/stat/smstat/mthbull/rpt_data_trade_summary_spac_shares_2609_[PAGE].json Trading summary for equity warrants (excluding SPAC warrants) /eng/sta | 2026-08: https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_2608.json has no 'Average yield'; starts Stock market highlights /eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2608.json Trading summary for equity securities (excluding SPAC shares) /eng/stat/smstat/mthbull/rpt_data_trade_summary_equity_2608_[PAGE].json Trading summary for SPAC shares /eng/stat/smstat/mthbull/rpt_data_trade_summary_spac_shares_2608_[PAGE].json Trading summary for equity warrants (excluding SPAC warrants) /eng/sta | 2026-07: https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_2607.json has no 'Average yield'; starts Stock market highlights /eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2607.json Trading summary for equity securities (excluding SPAC shares) /eng/stat/smstat/mthbull/rpt_data_trade_summary_equity_2607_[PAGE].json Trading summary for SPAC shares /eng/stat/smstat/mthbull/rpt_data_trade_summary_spac_shares_2607_[PAGE].json Trading summary for equity warrants (excluding SPAC warrants) /eng/sta | 2026-06: https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_2606.json has no 'Average yield'; starts Stock market highlights /eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2606.json Trading summary for equity securities (excluding SPAC shares) /eng/stat/smstat/mthbull/rpt_data_trade_summary_equity_2606_[PAGE].json Trading summary for SPAC shares /eng/stat/smstat/mthbull/rpt_data_trade_summary_spac_shares_2606_[PAGE].json Trading summary for equity warrants (excluding SPAC warrants) /eng/sta | 2026-05: https://www.hkex.com.hk/eng/stat/smstat/mthbull/MonthlyBulletin_2605.json has no 'Average yield'; starts Stock market highlights /eng/stat/smstat/mthbull/rpt_Stock_market_highlights_2605.json Trading summary for equity securities (excluding SPAC shares) /eng/stat/smstat/mthbull/rpt_data_trade_summary_equity_2605_[PAGE].json Trading summary for SPAC shares /eng/stat/smstat/mthbull/rpt_data_trade_summary_spac_shares_2605_[PAGE].json Trading summary for equity warrants (excluding SPAC warrants) /eng/sta
-hkex_mb_yield: 0 month(s) fetched this run; 15 obs, latest 2017-09 = 2.97%; P/E 15.21
+hkex: 43 month(s) not found, newest 2025-08, oldest 2022-02
+hkex notes: 2022-02: stopped after 100 requests, the rest continue next run
+hkex_mb_yield: 14 month(s) fetched this run; 29 obs, latest 2026-10 = 9.00%; P/E 8.00
