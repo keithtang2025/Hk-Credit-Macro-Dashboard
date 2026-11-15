@@ -59,6 +59,11 @@ def lines(parts: list[tuple[pd.Series | None, str]], years: int = 6, fmt: str = 
     fig = _base(fig, ysuffix)
     if len(parts) == 1:
         fig.update_layout(showlegend=False)
+    start = min(s.index[0] for s, _ in parts)
+    end = max(s.index[-1] for s, _ in parts)
+    if end - start < pd.Timedelta(days=180):  # a lone point: show it on a 1-year axis, not a clock
+        fig.update_xaxes(range=[end - pd.DateOffset(months=11), end + pd.DateOffset(months=1)],
+                         tickformat="%b %Y")
     return fig
 
 

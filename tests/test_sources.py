@@ -521,7 +521,8 @@ def test_hkex_backfill_and_incremental(tmp_path, monkeypatch):
 
     def fake_get(self, url, **kw):
         calls.append(url)
-        yymm = url[-8:-4]
+        import re
+        yymm = re.search(r"_(\d{4})\.html?$", url).group(1)
         if yymm == "2610":
             return R(404)  # newest month not published yet
         return R(200, HKEX_PAGE.replace("3.09", f"3.{yymm[-2:]}"))
@@ -534,4 +535,5 @@ def test_hkex_backfill_and_incremental(tmp_path, monkeypatch):
     data_mod.save_snapshot(out)
     calls.clear()
     hkex.fetch_hkex([])
-    assert len(calls) == 4  # only Jul to Oct are asked for again
+    # only Jul to Oct are asked for again: Oct (not published) is tried at every location
+    assert len(calls) == 3 + len(hkex.PATTERNS)
