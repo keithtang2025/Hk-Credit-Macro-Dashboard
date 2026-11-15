@@ -26,6 +26,28 @@ gdp_yoy: hk-censtatd-tablechart-310-31001 -> C&SD records freq=Q sv=CON svDesc='
 ## RVD property price index (via DATA.GOV.HK)
 home_price_index: Private Domestic - Price Indices by Class (Territory-wide) - Monthly (from 1993) -> column 'All Classes' with periods by row; 405 obs, latest 2026-09 = 320.8
 
+## RVD rental yields (via DATA.GOV.HK)
+FAILED LookupError: RVD yields: no class columns in Private Domestic - Property Market Yields - Monthly (from 1999)
+### Sheet `table` (200 rows read, 11 cols)
+- r0: PROPERTY  MARKET  YIELDS  - 
+- r1: Month | Domestic Class A | Domestic Class A - Remarks | Domestic Class B | Domestic Class B - Remarks | Domestic Class C | Domestic Class C - Remarks | Domestic Class D | Domestic Class D - Remarks | Domestic Class E | Domestic Class E - Remarks
+- r2: 01-1999 | 5.2 | 4.3 | 4.3 | 4.5 | 4.5
+- r3: 02-1999 | 5.2 | 4.3 | 4.4 | 4.7 | 4.4
+- r4: 03-1999 | 5.2 | 4.3 | 4.5 | 4.6 | 4.6
+- r5: 04-1999 | 5.1 | 4.4 | 4.4 | 4.5 | 4.2
+- r6: 05-1999 | 5.1 | 4.3 | 4.4 | 4.5 | 4.1
+- r7: 06-1999 | 5.1 | 4.3 | 4.4 | 4.3 | 4.1
+- r8: 07-1999 | 5.2 | 4.4 | 4.5 | 4.3 | 4.2
+- r9: 08-1999 | 5.3 | 4.4 | 4.5 | 4.4 | 4.1
+- r10: 09-1999 | 5.4 | 4.6 | 4.5 | 4.4 | 4.3
+- r11: 10-1999 | 5.3 | 4.6 | 4.6 | 4.5 | 4.2
+
+
 ## Official Receiver's Office (via DATA.GOV.HK)
 winding_up_petitions: Statistics on Compulsory Winding-up and Bankruptcy (English) -> column 'Compulsory Winding-up Petitions presented' with periods by row; 345 obs, latest 2026-09 = 97
 bankruptcy_petitions: Statistics on Compulsory Winding-up and Bankruptcy (English) -> column 'Bankruptcy Petitions presented' with periods by row; 345 obs, latest 2026-09 = 834
+
+## Hang Seng Indexes (dividend yield, P/E)
+note: performance feed: HTTPError: 404 Client Error: Not Found for url: https://www.hsi.com.hk/data/eng/rt/index-series/hsi/performance.do
+note: factsheet: LookupError: no 'Dividend Yield' figure in the factsheet
+FAILED LookupError: HSI dividend yield unavailable: performance feed: HTTPError: 404 Client Error: Not Found for url: https://www.hsi.com.hk/data/eng/rt/index-series/hsi/performance.do | factsheet: LookupError: no 'Dividend Yield' figure in the factsheet
