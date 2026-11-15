@@ -15,6 +15,8 @@ import pandas as pd
 import requests
 
 HSI_PERFORMANCE = "https://www.hsi.com.hk/data/eng/rt/index-series/hsi/performance.do"
+HSI_SITE = "https://www.hsi.com.hk"
+HSI_PAGE_MODEL = HSI_SITE + "/content/wpb/hsil/en_hk/indexes/all-indexes/index-details.model.json"
 HSI_FACTSHEET = "https://www.hsi.com.hk/static/uploads/contents/en/dl_centre/factsheets/hsie.pdf"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -91,13 +93,29 @@ def parse_performance(body) -> tuple[float, float | None, pd.Timestamp, str]:
 
 def parse_factsheet_text(text: str) -> tuple[float, float | None, pd.Timestamp | None]:
     flat = re.sub(r"\s+", " ", text)
-    dy = re.search(r"Dividend Yield\s*\(?%?\)?\s*[:]?\s*(\d+(?:\.\d+)?)", flat, re.I)
-    if not dy:
-        raise LookupError("no 'Dividend Yield' figure in the factsheet")
-    pe = re.search(r"P/?E Ratio\s*\(?(?:times|x)?\)?\s*[:]?\s*(\d+(?:\.\d+)?)", flat, re.I)
+    dy = _after(flat, r"div(?:idend)?\.?\s*yield", DY_OK)
+    if dy is None:
+        raise LookupError("no dividend yield figure in the factsheet. Text near 'yield' / 'P/E': "
+                          + _context(flat))
+    pe = _after(flat, r"p\s*/\s*e(?:\s*ratio)?|price.?earnings", PE_OK)
     when = re.search(r"as (?:at|of) (\d{1,2} \w{3,9} \d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})", flat, re.I)
     t = pd.to_datetime(when.group(1), errors="coerce", dayfirst=True) if when else None
-    return float(dy.group(1)), (float(pe.group(1)) if pe else None), (None if t is None or pd.isna(t) else t)
+    return dy, pe, (None if t is None or pd.isna(t) else t)
+
+
+def _after(flat: str, label: str, ok: tuple[float, float], span: int = 60) -> float | None:
+    """First number in range within `span` characters after the label."""
+    for m in re.finditer(label, flat, re.I):
+        for n in re.finditer(r"(?<![\d.])(\d{1,2}(?:\.\d{1,2})?)(?![\d.])", flat[m.end():m.end() + span]):
+            v = float(n.group(1))
+            if ok[0] <= v <= ok[1]:
+                return v
+    return None
+
+
+def _context(flat: str) -> str:
+    bits = [flat[max(0, m.start() - 80):m.end() + 120] for m in re.finditer(r"yield|p\s*/\s*e", flat, re.I)][:6]
+    return " || ".join(bits) if bits else "none found; text starts: " + flat[:600]
 
 
 def _manual() -> dict[str, pd.Series]:
@@ -124,16 +142,57 @@ def _with_manual(key: str, latest: pd.Series, manual: dict[str, pd.Series]) -> p
     return s
 
 
+def _links(obj) -> list[str]:
+    """Data-looking paths inside the site's page model JSON."""
+    found = []
+    for s in re.findall(r"[\"'](/[^\"'\s<>]+|https?://www\.hsi\.com\.hk/[^\"'\s<>]+)[\"']", str(obj)):
+        if re.search(r"\.json|\.do\b|/api/|/data/|servlet|\.csv|\.xlsx?", s, re.I) and s not in found:
+            found.append(s)
+    rank = lambda u: (not re.search(r"perform|index-?detail|indicator|statistic|fundament|valuat|hsi", u, re.I), len(u))
+    return sorted(found, key=rank)
+
+
+def _from_page_model(report: list[str]) -> tuple[float, float | None, pd.Timestamp, str]:
+    r = requests.get(HSI_PAGE_MODEL, headers=HEADERS, timeout=60)
+    r.raise_for_status()
+    body = r.json()
+    try:
+        return parse_performance(body)[:3] + ("page model JSON",)
+    except LookupError:
+        pass
+    links = _links(body)
+    report.append(f"page model: {len(links)} data-looking links: " + "; ".join(links[:25]))
+    tried = []
+    for link in links[:12]:
+        url = link if link.startswith("http") else HSI_SITE + link
+        for u in ([url.replace("{seriesCode}", "hsi").replace("${seriesCode}", "hsi")]
+                  + ([url + ("&" if "?" in url else "?") + "seriesCode=hsi"] if "seriesCode" not in url else [])):
+            try:
+                resp = requests.get(u, headers=HEADERS, timeout=45)
+                tried.append(f"{u} -> {resp.status_code}")
+                if resp.ok and "json" in resp.headers.get("content-type", "") + u:
+                    dy, pe, when, how = parse_performance(resp.json())
+                    return dy, pe, when, f"{u} ({how})"
+            except Exception as exc:
+                tried.append(f"{u} -> {exc.__class__.__name__}")
+    raise LookupError("no HSI figures via page model; tried " + "; ".join(tried[:20]))
+
+
 def fetch_hsi(report: list[str]) -> dict[str, pd.Series]:
     problems = []
     dy = pe = when = None
     how = ""
     try:
-        r = requests.get(HSI_PERFORMANCE, headers=HEADERS, timeout=60)
-        r.raise_for_status()
-        dy, pe, when, how = parse_performance(r.json())
+        dy, pe, when, how = _from_page_model(report)
     except Exception as exc:
-        problems.append(f"performance feed: {exc.__class__.__name__}: {str(exc)[:300]}")
+        problems.append(f"page model: {exc.__class__.__name__}: {str(exc)[:1500]}")
+    if dy is None:
+        try:
+            r = requests.get(HSI_PERFORMANCE, headers=HEADERS, timeout=60)
+            r.raise_for_status()
+            dy, pe, when, how = parse_performance(r.json())
+        except Exception as exc:
+            problems.append(f"performance feed: {exc.__class__.__name__}: {str(exc)[:300]}")
     if dy is None:
         try:
             from pypdf import PdfReader

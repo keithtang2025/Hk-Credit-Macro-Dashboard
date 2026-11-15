@@ -427,7 +427,7 @@ YIELD_CLASSES = "ABCDE"
 
 
 def _class_pattern(c: str) -> str:
-    return rf"^\s*class\s*{c}\b(?!\s*[,&])(?!.*remark)"
+    return rf"^\s*(?:domestic\s*)?class\s*{c}\b(?!\s*[,&])(?!.*remark)"
 
 
 def fetch_rvd_yields(report: list[str]) -> dict[str, pd.Series]:

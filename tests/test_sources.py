@@ -460,3 +460,28 @@ def test_rental_yield_spread_is_derived(tmp_path, monkeypatch):
     d = data_mod.build()
     assert d.series["rental_yield_spread"].iloc[-1] == pytest.approx(-0.5)
     assert d.origin["rental_yield_spread"] == "derived"
+
+
+def test_rvd_domestic_class_labels():
+    import re
+    pat = re.compile(govhk._class_pattern("a"), re.I)
+    assert pat.search("Domestic Class A") and not pat.search("Domestic Class A - Remarks")
+
+
+
+def test_hsi_page_model_follows_data_link(monkeypatch):
+    from src import market
+    model = {":items": {"root": {"dataUrl": "/data/eng/rt/index-series/hsi/indicators.json", "logo": "/img/x.png"}}}
+    feed = {"indexList": [{"indexCode": "HSI", "dividendYield": 3.4, "peRatio": 10.9, "asOfDate": "2026-11-13"}]}
+
+    class R:
+        def __init__(self, body, ct="application/json"):
+            self.body, self.ok, self.status_code, self.headers = body, True, 200, {"content-type": ct}
+        def raise_for_status(self): pass
+        def json(self): return self.body
+
+    def fake_get(url, **kw):
+        return R(model) if url.endswith("index-details.model.json") else R(feed)
+    monkeypatch.setattr(market.requests, "get", fake_get)
+    dy, pe, when, how = market._from_page_model([])
+    assert (dy, pe, when) == (3.4, 10.9, pd.Timestamp("2026-11-13")) and "indicators.json" in how
