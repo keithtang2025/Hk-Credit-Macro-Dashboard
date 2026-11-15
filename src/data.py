@@ -42,8 +42,10 @@ def save_snapshot(series: dict[str, pd.Series]) -> list[Path]:
     for key, s in series.items():
         path = SNAPSHOT_DIR / f"{key}.csv"
         old = load_snapshot(key)
-        if old is not None and len(old):  # keep older points a short source window has dropped
-            s = pd.concat([old[~old.index.isin(s.index)], s]).sort_index()
+        # Sources with a short window (e.g. HKMA's 20-period summary table) would lose history,
+        # so keep older points; a source that returns its full history replaces the file.
+        if old is not None and len(old) and len(s) and s.index[0] > old.index[0]:
+            s = pd.concat([old[old.index < s.index[0]], s]).sort_index()
         pd.DataFrame({"date": s.index.strftime("%Y-%m-%d"), "value": s.values}).to_csv(path, index=False)
         written.append(path)
     return written

@@ -163,6 +163,12 @@ def series_from_rows(rows: list[list], label_pattern: str, default_year: int | N
     periods: dict[int, pd.Timestamp] = {}
     for r, row in enumerate(rows):
         found = None
+        y0 = is_year_cell(row[0]) if row else None
+        if y0 and len(row) > 1 and isinstance(row[1], (int, float)) and not isinstance(row[1], bool) \
+                and row[1] == int(row[1]) and 1 <= row[1] <= 12:
+            year = y0
+            periods[r] = (pd.Timestamp(y0, int(row[1]), 1) + pd.offsets.MonthEnd(0)).normalize()
+            continue
         for v in row[:3]:
             y = is_year_cell(v)
             if y:
@@ -242,6 +248,63 @@ def rolling_12m(monthly: pd.Series) -> pd.Series:
     return monthly.asfreq("ME").rolling(12, min_periods=12).sum().dropna()
 
 
+# ---------------------------------------------------------------- C&SD web-table API records
+
+CSD_CORE = {"freq", "period", "sv", "svDesc", "figure", "sd_value"}
+
+
+@dataclass
+class CsdRule:
+    freqs: tuple[str, ...]          # preferred frequency codes, best first (M3M, M, Q)
+    desc: str                       # regex on svDesc (unit / transformation)
+    sv_include: str = r"."          # regex on the sv code
+    sv_exclude: str = r"^$"
+    dim_include: str | None = None  # regex that some dimension description must match
+    prefer: str = r"$^"             # regex on "sv svDesc" that wins ties
+
+
+def csd_select(rows: list[list], rule: CsdRule, valid: tuple[float, float]) -> tuple[pd.Series, str, str]:
+    """Pick one series from C&SD long-format records. Returns (series, how, candidate list)."""
+    df = pd.DataFrame(rows[1:], columns=rows[0])
+    dims = [c for c in df.columns if c not in CSD_CORE and not str(c).endswith("Desc")]
+    for d in dims:  # keep totals: blank code, or description 'Total'
+        desc_col = f"{d}Desc"
+        blank = df[d].isna() | (df[d].astype(str).str.strip().isin(["", "None", "T", "TOT", "Total"]))
+        if rule.dim_include and desc_col in df.columns:
+            hit = df[desc_col].astype(str).str.contains(rule.dim_include, case=False, regex=True)
+            if hit.any():
+                df = df[hit]
+                continue
+        if blank.any():
+            df = df[blank]
+    df = df.copy()
+    df["value"] = pd.to_numeric(df["figure"], errors="coerce")
+    df["date"] = [parse_period(str(p))[0] for p in df["period"]]
+    df = df.dropna(subset=["value", "date"])
+    groups = []
+    for (freq, sv, desc), g in df.groupby(["freq", "sv", "svDesc"], dropna=False):
+        s = g.set_index("date")["value"].sort_index()
+        s = s[~s.index.duplicated(keep="last")]
+        groups.append((str(freq), str(sv), str(desc), s))
+    listing = "; ".join(f"{f}/{sv}/{d} ({len(s)} obs, last {s.index[-1]:%Y-%m} = {s.iloc[-1]:.4g})"
+                        for f, sv, d, s in groups if len(s))
+    cands = []
+    for f, sv, d, s in groups:
+        if f not in rule.freqs or len(s) < 6:
+            continue
+        if not re.search(rule.desc, d, re.I) or not re.search(rule.sv_include, sv, re.I) \
+                or re.search(rule.sv_exclude, sv, re.I):
+            continue
+        if not s.tail(12).between(*valid).all():
+            continue
+        score = (rule.freqs.index(f) * -1, bool(re.search(rule.prefer, f"{sv} {d}", re.I)), s.index[-1], len(s))
+        cands.append((score, f, sv, d, s))
+    if not cands:
+        raise LookupError(f"no C&SD series fits the rule; series in table: {listing}")
+    _, f, sv, d, s = max(cands, key=lambda c: c[0])
+    return s, f"C&SD records freq={f} sv={sv} svDesc='{d}'", listing
+
+
 # ---------------------------------------------------------------- source definitions
 
 @dataclass
@@ -252,19 +315,26 @@ class TableSpec:
     label_patterns: tuple[str, ...]  # tried in order
     valid: tuple[float, float]
     resource_exclude: str | None = None
+    csd: CsdRule | None = None
 
 
 CSD_SPECS = [
     TableSpec("unemployment", ("hk-censtatd-tablechart-210-06101",), r"\[English\]",
               (r"(?=.*unemployment rate)(?=.*seasonally adjusted)(?!.*(not|non)[- ]seasonally)",
-               r"(?=.*unemployment rate)(?!.*under)"), (0.5, 15)),
+               r"(?=.*unemployment rate)(?!.*under)"), (0.5, 15),
+              csd=CsdRule(freqs=("M3M", "M"), desc=r"%", sv_include=r"^U|UNEMP",
+                          sv_exclude=r"UND|UDR|UEMP_?N|LFPR|^LF", prefer=r"SA|season")),
     TableSpec("cpi_yoy", ("hk-censtatd-tablechart-510-60001",), r"\[English\]",
               (r"(?=.*composite)(?=.*(year-on-year|% change|change over|yoy))",
-               r"(?=.*(year-on-year|% change|change over))(?!.*(cpi\s*\(a\)|cpi\s*\(b\)|cpi\s*\(c\)))"), (-10, 20)),
+               r"(?=.*(year-on-year|% change|change over))(?!.*(cpi\s*\(a\)|cpi\s*\(b\)|cpi\s*\(c\)))"), (-10, 20),
+              csd=CsdRule(freqs=("M",), desc=r"year-on-year|% change", dim_include=r"composite",
+                          sv_exclude=r"\(A\)|\(B\)|\(C\)|^A$|^B$|^C$", prefer=r"COMP|CCPI|composite")),
     TableSpec("gdp_yoy", ("hk-censtatd-tablechart-310-31001", "hk-censtatd-tablechart-310-31003",
                           "hk-censtatd-tablechart-310-30001"), r"\[English\]",
               (r"(?=.*(gdp|gross domestic product))(?=.*(real|chained))(?=.*(change|year-on-year))",
-               r"(?=.*(real terms|chained))(?=.*change)"), (-15, 20)),
+               r"(?=.*(real terms|chained))(?=.*change)"), (-15, 20),
+              csd=CsdRule(freqs=("Q",), desc=r"year-on-year", sv_exclude=r"CUR|DEF|IPD|PC|PER|CAP|PRICE",
+                          prefer=r"CH|CON|REAL|CVM|GDP")),
 ]
 
 
@@ -289,6 +359,16 @@ def fetch_table(spec: TableSpec, report: list[str]) -> pd.Series:
             except Exception as exc:
                 errors.append(f"{pkg}: {label}: {exc.__class__.__name__}: {exc}")
                 continue
+            if spec.csd and rows and {"sv", "figure", "period"} <= set(map(str, rows[0])):
+                try:
+                    s, how, listing = csd_select(rows, spec.csd, spec.valid)
+                    s.name = spec.key
+                    report.append(f"{spec.key}: {pkg} -> {how}; {len(s)} obs, latest {s.index[-1]:%Y-%m} = {s.iloc[-1]:.4g}")
+                    report.append(f"  (all series in {pkg}: {listing[:2500]})")
+                    return s
+                except LookupError as exc:
+                    errors.append(f"{pkg}: {exc}"[:4000])
+                    continue
             for lp in spec.label_patterns:
                 try:
                     f = series_from_rows(rows, lp, valid=spec.valid)
@@ -378,6 +458,27 @@ def _oro_series(res: list[dict], name_pattern: str, key: str, valid: tuple[float
 def fetch_oro(report: list[str]) -> dict[str, pd.Series]:
     res = resources(ORO_PACKAGE)
     out = {}
+    combined = [r for r in pick(res, r"^\s*Statistics on Compulsory Winding-up and Bankruptcy", formats=("CSV", "XLSX", "XLS"))
+                if not re.search(r"chinese", r.get("name", ""), re.I)]
+    if combined:
+        r = combined[0]
+        rows = load_rows(r["url"], r.get("format", "CSV"))
+        for key, pattern, valid in (("winding_up_petitions", r"winding-?\s?up petition", (0, 1000)),
+                                    ("bankruptcy_petitions", r"bankruptcy petition", (0, 5000))):
+            try:
+                f = series_from_rows(rows, pattern, valid=valid)
+                m = f.series
+                m.name = key
+                out[key] = m
+                r12 = rolling_12m(m)
+                if len(r12):
+                    r12.name = f"{key}_12m"
+                    out[f"{key}_12m"] = r12
+                report.append(f"{key}: {r.get('name')} -> {f.how}; {len(m)} obs, latest {m.index[-1]:%Y-%m} = {m.iloc[-1]:.0f}")
+            except LookupError as exc:
+                report.append(f"FAILED {key} in {r.get('name')}: {exc}\n" + describe({"t": rows[:60]}, r"petition|month|year"))
+        if out:
+            return out
     for key, pattern, valid in (("winding_up_petitions", r"compulsory winding", (0, 1000)),
                                 ("bankruptcy_petitions", r"bankruptc", (0, 5000))):
         try:

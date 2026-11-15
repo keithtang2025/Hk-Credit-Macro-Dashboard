@@ -249,3 +249,79 @@ def test_snapshot_accumulates_history(tmp_path, monkeypatch):
     data_mod.save_snapshot({"x": new})
     s = data_mod.load_snapshot("x")
     assert list(s.values) == [1.0, 2.5, 3.0]
+
+
+# ---------------------------------------------------------------- layouts seen in the second live run
+
+def _csd_rows(records):
+    keys = list(records[0].keys())
+    return [keys] + [[r.get(k) for k in keys] for r in records]
+
+
+def test_csd_unemployment_records_with_sex_dimension():
+    recs = []
+    for p in pd.period_range("2025-01", "2026-09", freq="M"):
+        per = p.strftime("%Y%m")
+        for sex, desc, adj in ((None, "Total", 0.0), ("F", "Female", -0.3), ("M", "Male", 0.3)):
+            recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "LF",
+                         "svDesc": "No. ('000)", "figure": "3800", "sd_value": None})
+            recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "UR",
+                         "svDesc": "%", "figure": str(3.9 + adj), "sd_value": None})
+            recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "UR_SA",
+                         "svDesc": "%", "figure": str(3.8 + adj), "sd_value": None})
+            recs.append({"SEX": sex, "SEXDesc": desc, "freq": "M3M", "period": per, "sv": "UNDR",
+                         "svDesc": "%", "figure": "1.4", "sd_value": None})
+    s, how, listing = govhk.csd_select(_csd_rows(recs), govhk.CSD_SPECS[0].csd, (0.5, 15))
+    assert "sv=UR_SA" in how and s.iloc[-1] == pytest.approx(3.8)
+    assert s.index[-1] == pd.Timestamp("2026-09-30") and "UNDR" in listing
+
+
+def test_csd_gdp_records_pick_real_not_current():
+    recs = [{"freq": "Y", "period": "1973", "sv": "CUR", "svDesc": "Year-on-year % change", "figure": "28.3", "sd_value": None}]
+    for i, q in enumerate(pd.period_range("2024Q1", "2026Q3", freq="Q")):
+        per = q.end_time.strftime("%Y%m")
+        recs.append({"freq": "Q", "period": per, "sv": "CUR", "svDesc": "HK$ million", "figure": "800000", "sd_value": None})
+        recs.append({"freq": "Q", "period": per, "sv": "CUR", "svDesc": "Year-on-year % change", "figure": "5.5", "sd_value": None})
+        recs.append({"freq": "Q", "period": per, "sv": "CHN", "svDesc": "Year-on-year % change", "figure": str(2.0 + i / 10), "sd_value": None})
+        recs.append({"freq": "Q", "period": per, "sv": "IPD", "svDesc": "Year-on-year % change", "figure": "1.1", "sd_value": None})
+    s, how, _ = govhk.csd_select(_csd_rows(recs), govhk.CSD_SPECS[2].csd, (-15, 20))
+    assert "sv=CHN" in how and s.index[-1] == pd.Timestamp("2026-09-30") and s.iloc[-1] == pytest.approx(3.0)
+
+
+def test_csd_cpi_records_pick_composite():
+    recs = []
+    for p in pd.period_range("2025-01", "2026-09", freq="M"):
+        per = p.strftime("%Y%m")
+        for code, desc, yoy in (("CCPI", "Composite CPI", 1.4), ("CPIA", "CPI(A)", 1.9), ("CPIB", "CPI(B)", 1.2)):
+            recs.append({"CPI_TYPE": code, "CPI_TYPEDesc": desc, "freq": "M", "period": per, "sv": "IDX",
+                         "svDesc": "Index", "figure": "105", "sd_value": None})
+            recs.append({"CPI_TYPE": code, "CPI_TYPEDesc": desc, "freq": "M", "period": per, "sv": "YOY",
+                         "svDesc": "Year-on-year % change", "figure": str(yoy), "sd_value": None})
+    s, how, _ = govhk.csd_select(_csd_rows(recs), govhk.CSD_SPECS[1].csd, (-10, 20))
+    assert s.iloc[-1] == pytest.approx(1.4) and len(s) == 21
+
+
+def test_oro_combined_monthly_file():
+    rows = [["Year", "Month", "Bankruptcy Petitions presented", "Receiving/Bankruptcy Orders made",
+             "Compulsory Winding-up Petitions presented", "Winding-up Orders made by the Court", "Weekly court hearing"],
+            [1996, "-", 780, 543, 742, 557, 48], [1997, "-", 829, 639, 658, 503, 49]]
+    for y in (2025, 2026):
+        for m in range(1, 13):
+            if y == 2026 and m > 10:
+                break
+            rows.append([y, m, 800 + m, 700, 60 + m, 40, 5])
+        rows.append([y, "Annual total", 9999, 8888, 777, 666, 55])
+    f_b = govhk.series_from_rows(rows, r"bankruptcy petition", valid=(0, 5000))
+    f_w = govhk.series_from_rows(rows, r"winding-?\s?up petition", valid=(0, 1000))
+    assert f_b.series.index[-1] == pd.Timestamp("2026-10-31") and f_b.series.iloc[-1] == 810
+    assert f_w.series.loc["2025-12-31"] == 72 and len(f_w.series) == 22
+    assert 9999 not in f_b.series.values and 777 not in f_w.series.values
+
+
+def test_snapshot_full_history_replaces_bad_values(tmp_path, monkeypatch):
+    from src import data as data_mod
+    monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
+    idx = pd.date_range("2025-01-31", periods=4, freq="ME")
+    data_mod.save_snapshot({"x": pd.Series([9.0, -6.0, 9.0, 1.0], index=idx)})
+    data_mod.save_snapshot({"x": pd.Series([1.1, 1.2, 1.3, 1.4], index=idx)})
+    assert list(data_mod.load_snapshot("x").values) == [1.1, 1.2, 1.3, 1.4]

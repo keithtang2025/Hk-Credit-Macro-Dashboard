@@ -165,10 +165,26 @@ def fetch_hkma() -> tuple[dict[str, pd.Series], str]:
         return res
 
     def usdhkd():
-        df = to_frame(get_records("monthly-statistical-bulletin/er-ir/er-eeri-endperiod"))
-        s = field(df, "usd", "usdhkd")
-        s = s[(s > 7.0) & (s < 8.5)]  # HKD per USD around the 7.75-7.85 band
-        return {"usdhkd": s}
+        """HKD per USD. The end-of-period endpoint has refused requests, so try alternatives."""
+        tries = [("monthly-statistical-bulletin/er-ir/er-eeri-endperiod", "usd", False),
+                 ("monthly-statistical-bulletin/er-ir/er-eeri-daily", "usd", True),
+                 ("monthly-statistical-bulletin/er-ir/er-eeri-periodaverage", "usd", False),
+                 ("monthly-statistical-bulletin/financial/monetary-statistics", "exrate_hkd_usd", False)]
+        problems = []
+        for path, name, daily in tries:
+            try:
+                df = to_frame(get_records(path, max_rows=3000))
+                s = field(df, name, "usdhkd")
+                if daily:
+                    s = month_end_last(s, "usdhkd")
+                s = s[(s > 7.0) & (s < 8.5)]  # HKD per USD around the 7.75-7.85 band
+                if len(s):
+                    notes.append(f"usdhkd source: {path}")
+                    return {"usdhkd": s}
+                problems.append(f"{path}: no values in range")
+            except Exception as exc:
+                problems.append(f"{path}: {exc.__class__.__name__}: {exc}")
+        raise LookupError("; ".join(problems))
 
     step("HKMA banking statistics", banking)
     step("HKMA residential mortgage survey", mortgage_survey)
