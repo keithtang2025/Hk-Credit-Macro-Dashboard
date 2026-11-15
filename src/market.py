@@ -145,10 +145,11 @@ def _manual() -> dict[str, pd.Series]:
 
 
 def _with_manual(key: str, latest: pd.Series, manual: dict[str, pd.Series]) -> pd.Series:
+    """History file first; a daily reading is only added for months after the file ends."""
     m = manual.get(key)
-    if m is None:
+    if m is None or m.empty:
         return latest
-    s = pd.concat([m[m.index < latest.index[0]], latest]).sort_index()
+    s = pd.concat([m, latest[latest.index > m.index[-1]]]).sort_index()
     s.name = key
     return s
 

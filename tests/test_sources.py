@@ -496,65 +496,6 @@ def test_hsi_factsheet_real_layout():
     assert (dy, pe) == (3.14, 13.04)
 
 
-HKEX_PAGE = """<html><body><h2>Main Board</h2><table>
-<tr><td></td><td>February 2017</td><td>February 2016</td><td>Year on year change (%)</td></tr>
-<tr><td>Market capitalisation (HK$mil)</td><td>26,354,927</td><td>21,249,569</td><td>24.03</td></tr>
-<tr><td>Average P/E ratio (times)</td><td>11.83</td><td>8.81</td><td>&nbsp;</td></tr>
-<tr><td>Average yield (%)</td><td>3.09</td><td>3.99</td><td></td></tr></table></body></html>"""
-
-
-def test_hkex_bulletin_page():
-    from src import hkex
-    got = hkex.parse_page(HKEX_PAGE)
-    assert got["pe"] == (11.83, 8.81) and got["yield"] == (3.09, 3.99)
-
-
-def test_hkex_backfill_and_incremental(tmp_path, monkeypatch):
-    from src import data as data_mod, hkex
-    monkeypatch.setattr(data_mod, "SNAPSHOT_DIR", tmp_path)
-    monkeypatch.setattr(hkex, "START", pd.Timestamp("2026-05-31"))
-    monkeypatch.setattr(hkex, "MISSING", tmp_path / "missing.txt")
-    calls = []
-
-    class R:
-        def __init__(self, code, text=""):
-            self.status_code, self.text = code, text
-
-    def fake_get(self, url, **kw):
-        calls.append(url)
-        import re
-        yymm = re.search(r"_(\d{4})\.(?:html?|json)$", url).group(1)
-        if yymm == "2610":
-            return R(404)  # newest month not published yet
-        return R(200, HKEX_PAGE.replace("3.09", f"3.{yymm[-2:]}"))
-    monkeypatch.setattr(hkex.requests.Session, "get", fake_get)
-    monkeypatch.setattr(hkex.pd.Timestamp, "now", classmethod(lambda cls, tz=None: pd.Timestamp("2026-11-15", tz=tz)))
-    out = hkex.fetch_hkex([])
-    s = out["hkex_mb_yield"]
-    assert list(s.index.strftime("%Y-%m")) == ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
-    assert s.iloc[-1] == 3.09 and out["hkex_mb_pe"].iloc[-1] == 11.83
-    data_mod.save_snapshot(out)
-    calls.clear()
-    hkex.fetch_hkex([])
-    # only Oct (missing) and the last two held months are asked for again
-    assert len(calls) == 2 + len(hkex.PATTERNS)
-
-
-def test_hkex_json_bulletin():
-    import json
-    from src import hkex
-    body = json.dumps({"tables": [{"id": "rpt_Stock_market_highlights", "rows": [
-        ["Market capitalisation (HK$mil)", "42,400,000", "35,000,000", "21.1"],
-        ["Average P/E ratio (times)", "12.41", "10.95", ""], ["Average yield (%)", "3.37", "3.80", ""]]}]})
-    got = hkex.parse_any(body, "https://x/MonthlyBulletin_2610.json")
-    assert got["pe"] == (12.41, 10.95) and got["yield"] == (3.37, 3.80)
-
-
-def test_hkex_skips_known_missing_months(tmp_path, monkeypatch):
-    from src import hkex
-    monkeypatch.setattr(hkex, "MISSING", tmp_path / "m.txt")
-    (tmp_path / "m.txt").write_text("2026-05\n")
-    assert "2026-05" in hkex._known_missing()
 
 
 def test_hkma_quarterly_records():
@@ -591,3 +532,16 @@ def test_hkma_long_history_replaces_short_summary(monkeypatch):
     assert got["loan_growth"].iloc[-1] == pytest.approx(5.0)
     assert got["classified_loans"].index[0] == pd.Timestamp("2015-03-31")
     assert got["card_chargeoff"].iloc[-1] == pytest.approx(2.4)
+
+
+def test_hsi_history_file_wins_and_daily_reading_extends_it(tmp_path, monkeypatch):
+    from src import market
+    f = tmp_path / "hsi_valuation.csv"
+    f.write_text("date,dividend_yield,pe_ratio,source\n2026-09-30,,13.79,x\n2026-10-31,,13.04,x\n")
+    monkeypatch.setattr(market, "MANUAL", f)
+    manual = market._manual()
+    same = market._with_manual("hsi_pe", pd.Series([13.10], index=[pd.Timestamp("2026-10-31")]), manual)
+    assert list(same.values) == [13.79, 13.04]  # the file's October figure is kept
+    later = market._with_manual("hsi_pe", pd.Series([12.9], index=[pd.Timestamp("2026-11-30")]), manual)
+    assert list(later.values) == [13.79, 13.04, 12.9]
+    assert "hsi_dividend_yield" not in manual  # no yield column filled in yet

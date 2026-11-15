@@ -108,9 +108,7 @@ def serve_layout():
             kpi("Unemployment", s.get("unemployment"), "{:.1f}%", "Seasonally adjusted"),
             kpi("Home prices", s.get("home_price_yoy"), "{:+.1f}%", "Year on year, RVD"),
             kpi("Rental yield", s.get("rental_yield"), "{:.2f}%", "Average of classes A to E, RVD"),
-            kpi("HSI dividend yield", s.get("hsi_dividend_yield") if s.get("hsi_dividend_yield") is not None
-                else s.get("hkex_mb_yield"), "{:.2f}%",
-                "Hang Seng Index" if s.get("hsi_dividend_yield") is not None else "Main Board average, HKEX"),
+            kpi("HSI dividend yield", s.get("hsi_dividend_yield"), "{:.2f}%", "Hang Seng Index"),
             kpi("Mortgage delinquency", s.get("mortgage_delinquency"), "{:.2f}%", "Overdue 3 months or more"),
         ]),
         html.Section(className="card", id="scorecard", children=[
@@ -148,17 +146,14 @@ def serve_layout():
             card("Rental yield gap", "Rental yield less 1-month HIBOR, percentage points. Red bars mean rent earns "
                  "less than the HIBOR funding cost, which leaves investors and buyers more exposed.",
                  charts.bars(s.get("rental_yield_spread"), years=4, fmt="{:+.1f}", ysuffix=" pp"), "c-rgap"),
-            card("Stock, property and cash yields", "Dividend yields of the Hang Seng Index and the whole HKEX Main Board "
-                 "vs residential rental yield and 3-month HIBOR, %. HSI history builds month by month; the Main Board "
-                 "series comes from HKEX's monthly bulletin.",
+            card("Stock, property and cash yields", "Hang Seng Index dividend yield vs residential rental yield and "
+                 "3-month HIBOR, %. HSI dividend yield history builds month by month from the factsheet.",
                  charts.lines([(s.get("hsi_dividend_yield"), "HSI dividend yield"),
-                               (s.get("hkex_mb_yield"), "Main Board avg yield"),
                                (s.get("rental_yield"), "Rental yield"), (s.get("hibor_3m"), "3M HIBOR")],
                               years=10, label_last=False), "c-yields"),
-            card("Equity valuation", "Price-to-earnings ratio, times: Hang Seng Index (Hang Seng Indexes) and HKEX Main "
-                 "Board average (HKEX monthly bulletin).",
-                 charts.lines([(s.get("hsi_pe"), "HSI P/E"), (s.get("hkex_mb_pe"), "Main Board avg P/E")],
-                              years=10, fmt="{:.1f}x", ysuffix="x", label_last=False), "c-pe"),
+            card("Hang Seng Index P/E", "Month-end weighted average P/E ratio, times. History from Hang Seng Indexes' "
+                 "P/E report (data/manual/hsi_valuation.csv); later months from the monthly factsheet.",
+                 charts.lines([(s.get("hsi_pe"), "HSI P/E")], years=20, fmt="{:.1f}x", ysuffix="x"), "c-pe"),
         ]),
         section("Banking asset quality", "banks", [
             card("Classified loans", "Classified loan ratio of retail banks, % of total loans. Quarterly.",
@@ -193,7 +188,7 @@ def serve_layout():
                    className="muted small"),
         ]),
         html.Footer("Built with Plotly Dash. Data: Hong Kong Monetary Authority, Census and Statistics Department, "
-                    "Rating and Valuation Department, Official Receiver's Office (via DATA.GOV.HK); Hang Seng Indexes; HKEX; USD/HKD from HKMA, the Federal Reserve "
+                    "Rating and Valuation Department, Official Receiver's Office (via DATA.GOV.HK); Hang Seng Indexes; USD/HKD from HKMA, the Federal Reserve "
                     "H.10 release via FRED, or ECB reference rates. Not investment advice.",
                     className="muted small"),
     ])
