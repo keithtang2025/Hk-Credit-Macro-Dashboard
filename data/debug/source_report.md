@@ -12,8 +12,8 @@ hibor_3m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 3.213
 base_rate: HKMA base rate; 413 obs, latest 2026-10 = 4.25
 aggregate_balance: HKMA daily interbank liquidity; 98 obs, latest 2026-11 = 54.05
 base_rate_daily: HKMA daily interbank liquidity; 98 obs, latest 2026-11 = 4.25
-
-FAILED HKMA exchange rates: LookupError: monthly-statistical-bulletin/er-ir/er-eeri-endperiod: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bul; monthly-statistical-bulletin/er-ir/hkd-fer-endperiod: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bul; monthly-statistical-bulletin/er-ir/hkd-fer-daily: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bul; monthly-statistical-bulletin/er-ir/er-eeri-daily: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bul; monthly-statistical-bulletin/financial/monetary-statistics: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bul; FRED DEXHKUS: ReadTimeout: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=60.0)
+usdhkd source: ECB reference rates, HKD/EUR divided by USD/EUR, month-end; earlier sources failed: monthly-statistical-bulletin/er-ir/er-eeri-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-daily; monthly-statistical-bulletin/er-ir/er-eeri-daily; monthly-statistical-bulletin/financial/monetary-statistics; FRED DEXHKUS
+usdhkd: HKMA exchange rates; 202 obs, latest 2026-10 = 7.846
 
 ## C&SD (via DATA.GOV.HK)
 unemployment: hk-censtatd-tablechart-210-06101 -> C&SD records freq=M3M sv=SAUR svDesc='(%)'; 435 obs, latest 2026-09 = 3.9
