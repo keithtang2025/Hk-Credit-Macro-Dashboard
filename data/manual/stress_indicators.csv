@@ -1,0 +1,3 @@
+indicator,latest,prior,unit,period,prior_period,higher_is_worse,source,note,replaced_by
+Mortgages in negative equity (cases),3819,31449,cases,Sep 2026,Sep 2025,true,HKMA quarterly survey,Updated quarterly from the HKMA press release,
+Negative-equity mortgages 3-month delinquency,1.34,0.24,%,Sep 2026,Sep 2025,true,HKMA quarterly survey,Updated quarterly from the HKMA press release,
