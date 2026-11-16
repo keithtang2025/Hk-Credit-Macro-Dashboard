@@ -14,10 +14,10 @@ card_chargeoff: HKMA monthly statistical bulletin, banking tables (full history)
 mortgage_delinquency: HKMA residential mortgage survey; 118 obs, latest 2026-09 = 0.11
 hibor_1m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 2.709
 hibor_3m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 3.213
+base_rate: HKMA base rate; 413 obs, latest 2026-10 = 4.25
 usdhkd source: ECB reference rates, HKD/EUR divided by USD/EUR, month-end; earlier sources failed: monthly-statistical-bulletin/er-ir/er-eeri-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-daily; monthly-statistical-bulletin/er-ir/er-eeri-daily; monthly-statistical-bulletin/financial/monetary-statistics; FRED DEXHKUS
 usdhkd: HKMA exchange rates; 202 obs, latest 2026-10 = 7.846
 
-FAILED HKMA base rate: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bulletin/monetary-operation/disc-win-liquid-adj-win-rates-endperiod?offset=0
 FAILED HKMA daily interbank liquidity: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/daily-monetary-statistics/daily-figures-interbank-liquidity?offset=0
 
 ## C&SD (via DATA.GOV.HK)
