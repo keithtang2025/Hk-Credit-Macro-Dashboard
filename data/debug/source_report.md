@@ -15,14 +15,14 @@ mortgage_delinquency: HKMA residential mortgage survey; 118 obs, latest 2026-09 
 hibor_1m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 2.709
 hibor_3m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 3.213
 base_rate: HKMA base rate; 413 obs, latest 2026-10 = 4.25
-usdhkd source: ECB reference rates, HKD/EUR divided by USD/EUR, month-end; earlier sources failed: monthly-statistical-bulletin/er-ir/er-eeri-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-endperiod; monthly-statistical-bulletin/er-ir/hkd-fer-daily; monthly-statistical-bulletin/er-ir/er-eeri-daily; monthly-statistical-bulletin/financial/monetary-statistics; FRED DEXHKUS
-usdhkd: HKMA exchange rates; 202 obs, latest 2026-10 = 7.846
-
-FAILED HKMA daily interbank liquidity: HTTPError: 405 Client Error: Not Allowed for url: https://api.hkma.gov.hk/public/market-data-and-statistics/daily-monetary-statistics/daily-figures-interbank-liquidity?offset=0
+aggregate_balance: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 54.05
+base_rate_daily: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 4.25
+usdhkd source: monthly-statistical-bulletin/er-ir/er-eeri-endperiod
+usdhkd: HKMA exchange rates; 522 obs, latest 2026-10 = 7.846
 
 ## C&SD (via DATA.GOV.HK)
-unemployment: hk-censtatd-tablechart-210-06101 -> C&SD records freq=M3M sv=SAUR svDesc='(%)'; 435 obs, latest 2026-09 = 3.9
-  (all series in hk-censtatd-tablechart-210-06101: M3M/EM/No. ('000) (435 obs, last 2026-09 = 3655); M3M/LF/No. ('000) (435 obs, last 2026-09 = 3810); M3M/LF/Year-on-year % change (404 obs, last 2026-09 = -0.3); M3M/LFPR/(%) (435 obs, last 2026-09 = 56.6); M3M/SAUR/(%) (435 obs, last 2026-09 = 3.9); M3M/UDE/No. ('000) (435 obs, last 2026-09 = 75); M3M/UDR/(%) (435 obs, last 2026-09 = 2); M3M/UE/No. ('000) (435 obs, last 2026-09 = 155); M3M/UR/(%) (435 obs, last 2026-09 = 4.1))
+unemployment: hk-censtatd-tablechart-210-06101 -> C&SD records freq=M3M sv=SAUR svDesc='(%)'; 436 obs, latest 2026-10 = 3.8
+  (all series in hk-censtatd-tablechart-210-06101: M3M/EM/No. ('000) (436 obs, last 2026-10 = 3654); M3M/LF/No. ('000) (436 obs, last 2026-10 = 3804); M3M/LF/Year-on-year % change (405 obs, last 2026-10 = -0.3); M3M/LFPR/(%) (436 obs, last 2026-10 = 56.5); M3M/SAUR/(%) (436 obs, last 2026-10 = 3.8); M3M/UDE/No. ('000) (436 obs, last 2026-10 = 74.4); M3M/UDR/(%) (436 obs, last 2026-10 = 2); M3M/UE/No. ('000) (436 obs, last 2026-10 = 150.5); M3M/UR/(%) (436 obs, last 2026-10 = 4))
 cpi_yoy: hk-censtatd-tablechart-510-60001 -> C&SD records freq=M sv=CC_CM_1920 svDesc='Year-on-year % change'; 540 obs, latest 2026-09 = 1.9
   (all series in hk-censtatd-tablechart-510-60001: M/A_CM_1920/Index (627 obs, last 2026-09 = 113.5); M/A_CM_1920/Month-to-month % change (626 obs, last 2026-09 = 0.2); M/A_CM_1920/Year-on-year % change (615 obs, last 2026-09 = 1.4); M/B_CM_1920/Index (627 obs, last 2026-09 = 110); M/B_CM_1920/Month-to-month % change (626 obs, last 2026-09 = 0.3); M/B_CM_1920/Year-on-year % change (615 obs, last 2026-09 = 2); M/CC_CM_1920/Index (552 obs, last 2026-09 = 111.2); M/CC_CM_1920/Month-to-month % change (551 obs, last 2026-09 = 0.3); M/CC_CM_1920/Year-on-year % change (540 obs, last 2026-09 = 1.9); M/C_CM_1920/Index (627 obs, last 2026-09 = 110); M/C_CM_1920/Month-to-month % change (626 obs, last 2026-09 = 0.4); M/C_CM_1920/Year-on-year % change (615 obs, last 2026-09 = 2.3))
 gdp_yoy: hk-censtatd-tablechart-310-31001 -> C&SD records freq=Q sv=CON svDesc='Year-on-year % change'; 211 obs, latest 2026-09 = 5.2
