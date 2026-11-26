@@ -9924,3 +9924,10 @@ retrieved,series,period,value,change
 2026-11-24,aggregate_balance,2026-11-30,54.187,revised
 2026-11-25,aggregate_balance,2026-11-30,54.203,revised
 2026-11-26,aggregate_balance,2026-11-30,54.083,revised
+2026-11-27,aggregate_balance,2026-11-30,56.112,revised
+2026-11-27,home_price_index,2026-07-31,319.9,revised
+2026-11-27,home_price_index,2026-09-30,320.9,revised
+2026-11-27,home_price_index,2026-10-31,319.0,new
+2026-11-27,home_price_yoy,2026-07-31,11.037834085387011,revised
+2026-11-27,home_price_yoy,2026-09-30,9.372869802317663,revised
+2026-11-27,home_price_yoy,2026-10-31,8.172261783655488,new

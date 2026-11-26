@@ -15,7 +15,7 @@ mortgage_delinquency: HKMA residential mortgage survey; 118 obs, latest 2026-09 
 hibor_1m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 2.709
 hibor_3m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 3.213
 base_rate: HKMA base rate; 413 obs, latest 2026-10 = 4.25
-aggregate_balance: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 54.08
+aggregate_balance: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 56.11
 base_rate_daily: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 4.25
 usdhkd source: monthly-statistical-bulletin/er-ir/er-eeri-endperiod
 usdhkd: HKMA exchange rates; 522 obs, latest 2026-10 = 7.846
@@ -29,7 +29,7 @@ gdp_yoy: hk-censtatd-tablechart-310-31001 -> C&SD records freq=Q sv=CON svDesc='
   (all series in hk-censtatd-tablechart-310-31001: Q/CON/HK$ million (215 obs, last 2026-09 = 8.763e+05); Q/CON/Year-on-year % change (211 obs, last 2026-09 = 5.2); Q/CUR/HK$ million (215 obs, last 2026-09 = 9.343e+05); Q/CUR/Year-on-year % change (211 obs, last 2026-09 = 9.2); Q/DEF/Index (Year 2024=100) (215 obs, last 2026-09 = 106.6); Q/DEF/Year-on-year % change (211 obs, last 2026-09 = 3.8); Q/SA1/Quarter-to-quarter % change (147 obs, last 2026-09 = 1.9))
 
 ## RVD property price index (via DATA.GOV.HK)
-home_price_index: Private Domestic - Price Indices by Class (Territory-wide) - Monthly (from 1993) -> column 'All Classes' with periods by row; 405 obs, latest 2026-09 = 320.8
+home_price_index: Private Domestic - Price Indices by Class (Territory-wide) - Monthly (from 1993) -> column 'All Classes' with periods by row; 406 obs, latest 2026-10 = 319.0
 
 ## RVD rental yields (via DATA.GOV.HK)
 rental_yield: Private Domestic - Property Market Yields - Monthly (from 1999) -> average of classes A, B, C, D, E; 333 obs, latest 2026-09 = 2.86%
