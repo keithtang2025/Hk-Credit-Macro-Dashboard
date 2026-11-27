@@ -15,7 +15,7 @@ mortgage_delinquency: HKMA residential mortgage survey; 118 obs, latest 2026-09 
 hibor_1m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 2.709
 hibor_3m: HKMA HIBOR fixings; 364 obs, latest 2026-10 = 3.213
 base_rate: HKMA base rate; 413 obs, latest 2026-10 = 4.25
-aggregate_balance: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 56.11
+aggregate_balance: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 54.11
 base_rate_daily: HKMA daily interbank liquidity; 284 obs, latest 2026-11 = 4.25
 usdhkd source: monthly-statistical-bulletin/er-ir/er-eeri-endperiod
 usdhkd: HKMA exchange rates; 522 obs, latest 2026-10 = 7.846
